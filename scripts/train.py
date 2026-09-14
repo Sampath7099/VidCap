@@ -46,14 +46,16 @@ def main():
     ap.add_argument("--stage", choices=["B", "C"], required=True)
     ap.add_argument("--dataset", default="msrvtt")
     ap.add_argument("--root", default=None)
-    ap.add_argument("--connector", default="resampler")
+    # meanpool + expanding projector = the ClipCap/LLaVA-shaped path, which trains
+    # reliably at this data scale. The resampler is a Phase 9 ablation, not the default.
+    ap.add_argument("--connector", default="meanpool")
     ap.add_argument("--k", type=int, default=8, help="frame budget")
-    ap.add_argument("--n-prefix", type=int, default=8)
+    ap.add_argument("--n-prefix", type=int, default=16)
     ap.add_argument("--lora-r", type=int, default=8)
     ap.add_argument("--blind", action="store_true", help="control: zero the visual prefix")
     ap.add_argument("--epochs", type=int, default=5)
     ap.add_argument("--bs", type=int, default=32)
-    ap.add_argument("--lr", type=float, default=1e-4)
+    ap.add_argument("--lr", type=float, default=1e-3)  # LLaVA alignment-stage value
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument("--name", default=None)
     ap.add_argument("--init", default=None)
