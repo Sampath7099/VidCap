@@ -189,6 +189,32 @@ known-to-train design. Primary connector becomes the ClipCap/LLaVA-shaped MLP pa
 PLAN.md always had it. The null result is worth reporting: "the resampler collapses without
 contrastive pretraining at this data scale; the MLP path does not."
 
+## Blind gate PASSED (2026-09-15)
+
+After switching to the standard bridge, 500 clips (327 train / 24 val / 149 test), 3 epochs,
+60 steps, meanpool + LayerNorm + lr 1e-3, trained on random frames:
+
+| arm | BLEU-4 | ROUGE-L | CIDEr-D |
+|---|---|---|---|
+| sighted, uniform K=8 | 0.3025 | 0.5562 | **0.3108** |
+| sighted, motion K=8 | 0.3000 | 0.5510 | 0.2939 |
+| blind | 0.1377 | 0.4067 | **0.0186** |
+
+CIDEr-D gap **+0.2922** (16x). The vision path is alive; step 3 of the revised execution order
+is cleared and the scorer work is unblocked. Val loss: sighted 3.39, blind 3.59.
+
+Caveat on the `B` diagnostic: across-clip prefix cosine is **0.9729**, down from 0.9999 but not
+far down. The earlier "below 0.9 means healthy" threshold was a guess and is wrong — in a
+high-dimensional anisotropic space a large shared component can coexist with ample usable
+variation, which is exactly what the 16x CIDEr gap demonstrates. Treat the blind gate as the
+authority and `B` only as a collapse alarm (≈1.0000 = dead).
+
+Also measured: caching runs at **2.63 s/video**, so the remaining 9,500 clips cost ~7 h — its
+own session, since Save & Run All caps at 12 h.
+
+Still open: uniform (0.3108) slightly beats motion (0.2939), as expected on 15s single-shot
+MSR-VTT where there is no selection headroom. Do not read it as a selection result.
+
 ## Parameter budget (measured, not estimated)
 
 | Component | Params | State |
