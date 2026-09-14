@@ -3,4 +3,5 @@ transformers>=4.45
 sentencepiece      # SigLIP's tokenizer needs this; transformers does not pull it in
 opencv-python      # frame extraction
 numpy
+tqdm               # progress + ETA; preinstalled on Kaggle
 scipy              # SumMe GT/*.mat

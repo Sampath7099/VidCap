@@ -24,6 +24,13 @@ def _dim(model):
     return getattr(model.config, "projection_dim", None) or model.config.text_config.hidden_size
 
 
+def _feat(x):
+    """transformers >=4.50 returns BaseModelOutputWithPooling from get_*_features; older returns a tensor."""
+    if torch.is_tensor(x):
+        return x
+    return x.pooler_output if getattr(x, "pooler_output", None) is not None else x.last_hidden_state[:, 0]
+
+
 @torch.no_grad()
 def embed_images(model, proc, device, images, batch=32):
     """images: list/array of HWC RGB uint8 -> (N, D) float32, unnormalized."""
@@ -31,7 +38,7 @@ def embed_images(model, proc, device, images, batch=32):
     for i in range(0, len(images), batch):
         px = proc(images=list(images[i:i + batch]), return_tensors="pt")["pixel_values"]
         px = px.to(device, dtype=model.dtype)
-        out.append(model.get_image_features(pixel_values=px).float().cpu())
+        out.append(_feat(model.get_image_features(pixel_values=px)).float().cpu())
     return torch.cat(out).numpy() if out else np.zeros((0, _dim(model)), np.float32)
 
 
@@ -43,8 +50,8 @@ def embed_texts(model, proc, device, texts, batch=256):
     for i in range(0, len(texts), batch):
         tok = proc(text=list(texts[i:i + batch]), return_tensors="pt",
                    truncation=True, **pad).to(device)
-        out.append(model.get_text_features(**{k: v for k, v in tok.items()
-                                              if k in ("input_ids", "attention_mask")}).float().cpu())
+        out.append(_feat(model.get_text_features(**{k: v for k, v in tok.items()
+                                                   if k in ("input_ids", "attention_mask")})).float().cpu())
     return torch.cat(out).numpy() if out else np.zeros((0, _dim(model)), np.float32)
 
 

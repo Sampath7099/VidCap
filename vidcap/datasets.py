@@ -21,13 +21,24 @@ def _find_videos(root):
 
 # --- MSR-VTT: primary training + captioning-quality eval ------------------------
 
+def _official_split(video_id):
+    """MSR-VTT's published split is a contiguous id range: 0-6512 train, 6513-7009 val,
+    7010-9999 test. Mirrors that drop the per-video 'split' field still follow it, so this
+    reproduces the official 6513/497/2990 rather than inventing a split."""
+    try:
+        n = int(video_id.lower().replace("video", ""))
+    except ValueError:
+        return "test"
+    return "train" if n < 6513 else "val" if n < 7010 else "test"
+
+
 def msrvtt(root=None):
-    """Official 6513/497/2990 split, read from the annotation JSONs (not re-derived)."""
+    """Official 6513/497/2990 split, from the annotation JSONs where present."""
     root = Path(root or DATA / "msrvtt")
     vids = _find_videos(root)
     caps, splits = {}, {}
     # Mirrors disagree on the filename: the official release ships *videodatainfo*.json,
-    # the Frozen-in-Time zip ships MSR_VTT.json. Same schema, so accept either.
+    # the Frozen-in-Time zip ships MSR_VTT.json.
     anns = sorted(p for p in root.rglob("*.json")
                   if "videodatainfo" in p.name.lower() or "msr_vtt" in p.name.lower())
     if not anns:
@@ -37,10 +48,20 @@ def msrvtt(root=None):
     for js in anns:
         d = json.loads(js.read_text())
         for v in d.get("videos", []):
-            splits[v["video_id"]] = {"validate": "val"}.get(v.get("split"), v.get("split", "test"))
-        for s in d.get("sentences", []):
-            caps.setdefault(s["video_id"], []).append(s["caption"])
-    return [{"video_id": k, "path": vids[k], "split": splits.get(k, "test"), "captions": caps.get(k, [])}
+            if v.get("split"):
+                splits[v["video_id"]] = {"validate": "val"}.get(v["split"], v["split"])
+        # ...and on the caption schema: official uses sentences/[video_id], the
+        # Frozen-in-Time repack uses COCO-style annotations/[image_id]. Same content.
+        for s in d.get("sentences", []) + d.get("annotations", []):
+            vid, cap = s.get("video_id") or s.get("image_id"), s.get("caption")
+            if vid and cap:
+                caps.setdefault(vid, []).append(cap)
+    if not caps:
+        raise ValueError(
+            f"parsed {[p.name for p in anns]} but found no captions — unexpected schema. "
+            f"Top-level keys: {sorted(json.loads(anns[0].read_text()).keys())}")
+    return [{"video_id": k, "path": vids[k],
+             "split": splits.get(k) or _official_split(k), "captions": caps.get(k, [])}
             for k in sorted(caps) if k in vids]
 
 

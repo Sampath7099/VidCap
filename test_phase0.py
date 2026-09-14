@@ -112,6 +112,30 @@ def test_msrvtt_frozen_in_time_naming():
         "sentences": [{"video_id": "video9", "caption": "a cat sits"}]}))
     recs = datasets.msrvtt(root)
     assert len(recs) == 1 and recs[0]["captions"] == ["a cat sits"], recs
+
+    # COCO-style schema (annotations/image_id) with no per-video split field: captions
+    # must still parse, and the split must fall back to the official id ranges.
+    coco = Path(TMP) / "data/msrvtt_coco"
+    for vid in ("video3", "video6600", "video8000"):
+        make_video(coco / f"videos/all/{vid}.mp4", seconds=2)
+    (coco / "annotation").mkdir(parents=True, exist_ok=True)
+    (coco / "annotation/MSR_VTT.json").write_text(json.dumps({
+        "videos": [{"video_id": v} for v in ("video3", "video6600", "video8000")],
+        "annotations": [{"image_id": v, "caption": f"cap {v}"}
+                        for v in ("video3", "video6600", "video8000")]}))
+    recs = datasets.msrvtt(coco)
+    got = {r["video_id"]: r["split"] for r in recs}
+    assert got == {"video3": "train", "video6600": "val", "video8000": "test"}, got
+
+    # a schema we genuinely can't parse must name itself, not return an empty list
+    weird = Path(TMP) / "data/msrvtt_weird"
+    make_video(weird / "video0.mp4", seconds=2)
+    (weird / "MSR_VTT.json").write_text(json.dumps({"totally": "different"}))
+    try:
+        datasets.msrvtt(weird)
+        raise SystemExit("FAIL: unparseable schema returned silently")
+    except ValueError as e:
+        assert "totally" in str(e), e
     # a missing annotation must fail loudly, not return an empty dataset
     bare = Path(TMP) / "data/msrvtt_bare"
     make_video(bare / "video0.mp4", seconds=2)
