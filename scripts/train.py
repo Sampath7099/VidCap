@@ -50,7 +50,10 @@ def main():
     # reliably at this data scale. The resampler is a Phase 9 ablation, not the default.
     ap.add_argument("--connector", default="meanpool")
     ap.add_argument("--k", type=int, default=8, help="frame budget")
-    ap.add_argument("--n-prefix", type=int, default=16)
+    # With meanpool the projector scales linearly in n_prefix: 8 -> 61.9M params, 16 -> 118.6M.
+    # 16 would put ~1.1k caption pairs per million trainable params against a 4.3k budget, so
+    # raise this only if captions come out generic, and watch train/val divergence if you do.
+    ap.add_argument("--n-prefix", type=int, default=8)
     ap.add_argument("--lora-r", type=int, default=8)
     ap.add_argument("--blind", action="store_true", help="control: zero the visual prefix")
     ap.add_argument("--epochs", type=int, default=5)
