@@ -102,6 +102,27 @@ def test_msrvtt_loader_and_leakage():
     print("loader + leakage gate ok")
 
 
+def test_msrvtt_frozen_in_time_naming():
+    """The Frozen-in-Time zip ships MSR_VTT.json, not *videodatainfo*.json."""
+    root = Path(TMP) / "data/msrvtt_fit"
+    make_video(root / "videos/all/video9.mp4", seconds=2)
+    (root / "annotation").mkdir(parents=True, exist_ok=True)
+    (root / "annotation/MSR_VTT.json").write_text(json.dumps({
+        "videos": [{"video_id": "video9", "split": "train"}],
+        "sentences": [{"video_id": "video9", "caption": "a cat sits"}]}))
+    recs = datasets.msrvtt(root)
+    assert len(recs) == 1 and recs[0]["captions"] == ["a cat sits"], recs
+    # a missing annotation must fail loudly, not return an empty dataset
+    bare = Path(TMP) / "data/msrvtt_bare"
+    make_video(bare / "video0.mp4", seconds=2)
+    try:
+        datasets.msrvtt(bare)
+        raise SystemExit("FAIL: missing annotation returned silently")
+    except FileNotFoundError:
+        pass
+    print("frozen-in-time naming + missing-annotation gate ok")
+
+
 def test_checkpoint_resume():
     m = torch.nn.Linear(4, 2)
     opt = torch.optim.Adam(m.parameters(), lr=0.1)
@@ -124,5 +145,6 @@ if __name__ == "__main__":
     test_sampling()
     test_cache_resumable()
     test_msrvtt_loader_and_leakage()
+    test_msrvtt_frozen_in_time_naming()
     test_checkpoint_resume()
     print(f"\nall phase 0 checks passed  ({TMP})")
