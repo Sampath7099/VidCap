@@ -29,7 +29,14 @@ def motion_indices(emb, k):
     return sorted(np.argsort(-d)[:k].tolist())
 
 
-SELECTORS = {"uniform": uniform_indices, "motion": motion_indices}
+def uniform_sel(emb, k):
+    """Adapter: uniform_indices takes a pool size, the selector protocol takes the pool."""
+    return uniform_indices(len(emb), k)
+
+
+# Every entry MUST take (emb, k) — eval_batches calls them as sel(emb, k). Registering
+# uniform_indices directly here passed an array where it expected an int.
+SELECTORS = {"uniform": uniform_sel, "motion": motion_indices}
 
 
 def load_model(name, device):
@@ -92,7 +99,7 @@ def main():
     if args.ckpt_blind:
         blind, _ = load_model(args.ckpt_blind, device)
         k = max(budgets)
-        b_scores, _, _ = run(blind, args.dataset, recs, uniform_indices, k, device, args.beam)
+        b_scores, _, _ = run(blind, args.dataset, recs, uniform_sel, k, device, args.beam)
         results["blind"] = b_scores
         s = results["curves"]["uniform"][k]
         print(f"\nblind control @K={k}: " + "  ".join(f"{m} {v:.4f}" for m, v in b_scores.items()))
