@@ -24,8 +24,14 @@ def main():
 
     records = LOADERS[args.dataset](args.root)
     print(f"{args.dataset}: {len(records)} videos found | splits {verify_no_leakage(records)}")
-    if args.limit:
-        records = records[:args.limit]
+    if args.limit and args.limit < len(records):
+        # Evenly spaced, NOT the first N. Video ids sort lexicographically
+        # (video0, video1, video10, video100, ...), so a prefix lands entirely inside the
+        # train id range and caches zero val/test clips — val loss comes out nan and
+        # there is nothing to checkpoint on.
+        idx = np.linspace(0, len(records) - 1, args.limit).round().astype(int)
+        records = [records[i] for i in dict.fromkeys(idx.tolist())]
+        print(f"  limited to {len(records)} evenly spaced | splits {verify_no_leakage(records)}")
     if not records:
         sys.exit("no videos found — check --root / DATA path")
 
