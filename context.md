@@ -162,6 +162,33 @@ relative gaps instead.
 
 Not started: the scorer (step 4), and every training run (steps 2, 3, 6, 7).
 
+## First real run: the connector collapsed (2026-09-14)
+
+First end-to-end Stage B on Kaggle, 500 clips evenly sampled (327 train / 24 val / 149 test),
+3 epochs, ~60 steps. **The blind control beat the sighted model on every metric**, so the
+step-3 gate failed and the scorer work is blocked until it passes.
+
+Measured, not inferred:
+- Across-clip cosine of cached SigLIP pooled embeddings: **0.5665** — inputs are well separated.
+- Across-clip cosine of the trained connector's prefix: **0.9999** — the connector emits
+  essentially the same prefix for every video. Information is present at the input and
+  destroyed by the connector.
+- Sighted **4.25 train / 3.82 val**; blind **3.44 train / 3.50 val**. Sighted is worse on
+  *training* data, so this is not a generalisation gap — the prefix is harmful noise.
+
+Cause: a Flamingo-style learned-query resampler was made the *primary* connector. BLIP-2's
+Q-Former needs a contrastive pretraining stage before captioning loss precisely because cold
+learned queries collapse to input-independent output. We skipped that stage and reproduced the
+documented failure. Two omissions made it worse: frame embeddings were fed unnormalised (and
+SigLIP's are anisotropic — see below), and the connector LR was 1e-4 where LLaVA's alignment
+stage uses 1e-3.
+
+Decision: the bridge is not this project's contribution, so it should be the standard,
+known-to-train design. Primary connector becomes the ClipCap/LLaVA-shaped MLP path
+(`meanpool` + expanding projector); the resampler stays as a Phase 9 ablation, which is where
+PLAN.md always had it. The null result is worth reporting: "the resampler collapses without
+contrastive pretraining at this data scale; the MLP path does not."
+
 ## Parameter budget (measured, not estimated)
 
 | Component | Params | State |
