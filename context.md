@@ -215,6 +215,18 @@ own session, since Save & Run All caps at 12 h.
 Still open: uniform (0.3108) slightly beats motion (0.2939), as expected on 15s single-shot
 MSR-VTT where there is no selection headroom. Do not read it as a selection result.
 
+### Connector decision: meanpool
+
+500 clips, 3 epochs, identical settings — meanpool val **3.3928** vs temporal-transformer
+**3.9576**. Meanpool it is, for the full run and for the blind control (they must match or the
+gate measures nothing).
+
+Caveat on the method: 60 steps rewards fast convergence, not final quality. Temporal was still
+descending (4.37 → 4.05 → 3.96) and self-attention usually needs longer to get going, so it may
+close the gap at 4,000 steps. Not worth 5 GPU-hours to find out now — revisit as a Phase 9
+ablation once the full cache exists. Meanpool's known cost is temporal blindness: it averages
+the K frames, so the model cannot express ordering or change over time.
+
 ## Parameter budget (measured, not estimated)
 
 | Component | Params | State |
