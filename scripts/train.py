@@ -5,10 +5,10 @@
   python -m scripts.train --stage B --blind --name blind   # the control
 """
 import argparse
-import time
 
 import torch
 from torch.utils.data import DataLoader
+from tqdm import tqdm
 
 from vidcap import checkpoint
 from vidcap.data import VideoCaptionDataset, load_split, make_collate
@@ -88,7 +88,9 @@ def main():
         print(f"resumed {name} @ step {step}")
 
     model.train()
-    t0 = time.time()
+    # mininterval: see build_cache — committed Kaggle runs log every tqdm redraw.
+    bar = tqdm(total=args.epochs * len(dl), initial=step, desc=name,
+               unit="step", mininterval=30)
     for ep in range(args.epochs):
         for frames, ids, mask in dl:
             loss, _ = model(frames.to(device), ids.to(device), mask.to(device))
@@ -97,15 +99,16 @@ def main():
             torch.nn.utils.clip_grad_norm_(params, 1.0)
             opt.step()
             step += 1
+            bar.update(1)
             if step % 25 == 0:
-                print(f"ep{ep} step{step} loss {loss.item():.4f} "
-                      f"{(time.time()-t0)/step:.2f}s/step", flush=True)
+                bar.set_postfix(ep=ep, loss=f"{loss.item():.4f}")
             if step % args.save_every == 0:
                 checkpoint.save(name, step, model, opt, args=vars(args))
         vl = evaluate_loss(model, vdl, device) if vdl else float("nan")
         print(f"== epoch {ep} done | val loss {vl:.4f}", flush=True)
         checkpoint.save(name, step, model, opt, args=vars(args), val_loss=vl)
 
+    bar.close()
     checkpoint.save(name, step, model, opt, args=vars(args))
     print(f"saved {name} @ step {step}")
 

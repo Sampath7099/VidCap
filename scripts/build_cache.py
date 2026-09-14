@@ -5,9 +5,9 @@
 """
 import argparse
 import sys
-import time
 
 import numpy as np
+from tqdm import tqdm
 
 from vidcap.encoder import cache_path, cache_video, embed_texts, load_vision
 from vidcap.config import CACHE, DATASETS
@@ -32,8 +32,10 @@ def main():
     model, proc, device = load_vision()
     print(f"vision encoder on {device}")
 
-    t0, done, empty = time.time(), 0, []
-    for i, r in enumerate(records, 1):
+    # mininterval: Kaggle's committed runs capture stdout to a file where \r doesn't
+    # collapse, so a default-rate tqdm writes thousands of lines into the log.
+    done, empty = 0, []
+    for r in tqdm(records, desc="caching", unit="vid", mininterval=30):
         if cache_path(args.dataset, r["video_id"]).exists() and not args.overwrite:
             done += 1
             continue
@@ -41,8 +43,6 @@ def main():
         if n == 0:
             empty.append(r["video_id"])
         done += 1
-        if i % 25 == 0 or i == len(records):
-            print(f"  {i}/{len(records)}  {(time.time()-t0)/i:.2f}s/video", flush=True)
 
     # Caption text embeddings: the Phase 1 relevance labels (text is a label source, never a model input).
     caps = [(r["video_id"], c) for r in records for c in r["captions"]]

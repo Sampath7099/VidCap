@@ -8,12 +8,21 @@
 set -u
 CAP="${VIDCAP_MEM_CAP:-7G}"
 
+# Kaggle HAS systemd-run but no D-Bus session, so `command -v` is not enough —
+# probe that it actually runs something before relying on it.
+if systemd-run --user --scope -q -p "MemoryMax=$CAP" true >/dev/null 2>&1; then
+  CGROUP=1
+else
+  CGROUP=0
+  echo "note: no usable cgroup cap (expected on Kaggle) — relying on container limits"
+fi
+
 run() {
   echo "--- $* ---"
-  if command -v systemd-run >/dev/null 2>&1; then
+  if [ "$CGROUP" = 1 ]; then
     systemd-run --user --scope -q -p "MemoryMax=$CAP" -p MemorySwapMax=0 "$@"
   else
-    "$@"   # no cgroups (e.g. Kaggle) — rely on the container's own limits
+    "$@"
   fi
 }
 
