@@ -73,6 +73,21 @@ def _fake_cache(dataset, ids, n_frames=40):
                                 times=np.arange(n_frames, dtype=np.float32))
 
 
+def test_selector_protocol():
+    """Every entry in evaluate.SELECTORS is called as sel(emb, k) by eval_batches, so all
+    of them must take the pool array — not a pool size. Registering a size-taking function
+    here raised 'truth value of an array is ambiguous' only once that arm actually ran."""
+    from scripts.evaluate import SELECTORS
+    emb = np.random.randn(20, 16).astype(np.float32)
+    for name, sel in SELECTORS.items():
+        idx = sel(emb, 4)
+        assert len(idx) == 4, f"{name} returned {len(idx)} indices for k=4"
+        assert all(isinstance(i, int) and 0 <= i < len(emb) for i in idx), f"{name}: {idx}"
+        short = sel(emb[:2], 4)          # pool smaller than the budget must still pad to k
+        assert len(short) == 4, f"{name} gave {len(short)} for a 2-frame pool"
+    print(f"selector protocol ok ({', '.join(SELECTORS)})")
+
+
 def test_dataset_and_collate():
     from transformers import AutoTokenizer
     from vidcap.config import LLM_MODEL
@@ -118,6 +133,7 @@ if __name__ == "__main__":
     test_rouge_l()
     test_cider()
     test_uniform_indices()
+    test_selector_protocol()
     test_dataset_and_collate()
     test_beam1_equals_greedy()
     print(f"\npipeline gates passed ({TMP})")
