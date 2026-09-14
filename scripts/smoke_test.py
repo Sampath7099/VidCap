@@ -3,7 +3,7 @@ import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from vidcap.encoder import embed_images, embed_texts, load_vision, normalize
-from vidcap.config import LLM_MODEL
+from vidcap.config import LLM_MODEL, LORA_TARGETS
 
 import numpy as np
 
@@ -26,8 +26,13 @@ def check_llm():
     ids = tok("A man is playing", return_tensors="pt").input_ids
     with torch.no_grad():
         out = llm.generate(ids, max_new_tokens=8, do_sample=False)
-    n_attn = sum(1 for n, _ in llm.named_modules() if n.endswith("attn.c_attn"))
-    assert n_attn > 0, "no attention projections found — LoRA (Phase 3) needs these"
+    # Same predicate apply_lora() uses, so this gate cannot drift from what actually
+    # gets wrapped. Module names are architecture-specific: GPT-2 has attn.c_attn,
+    # Qwen has q/k/v/o_proj — LORA_TARGETS covers both.
+    n_attn = sum(1 for n, _ in llm.named_modules() if n.split(".")[-1] in LORA_TARGETS)
+    assert n_attn > 0, (
+        f"no attention projections found in {LLM_MODEL} — LoRA (Phase 3) needs these. "
+        f"Looked for {LORA_TARGETS}")
     print(f"{LLM_MODEL} ok  {sum(p.numel() for p in llm.parameters())/1e6:.0f}M params  "
           f"{n_attn} LoRA-targetable projections")
     print(f"  sample: {tok.decode(out[0], skip_special_tokens=True)!r}")
