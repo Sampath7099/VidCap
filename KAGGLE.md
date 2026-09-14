@@ -31,17 +31,12 @@ Step 7 is how you keep it.
 Kaggle can't see your laptop. Easiest reliable route is GitHub — and you need a repo for this
 project's final deliverable anyway.
 
-On your laptop, in `/home/sampath/Desktop/Projects/VidCap`:
+The repo is already initialised and committed at `/home/sampath/Desktop/Projects/VidCap`, with
+`origin` pointing at `https://github.com/Sampath7099/VidCap.git`. Make an **empty** repo of that
+name on github.com (no README, no .gitignore — we already have one), then:
 
 ```bash
-git init && git add -A && git commit -m "VidCap: phase 0 + vanilla captioner"
-```
-
-Then make an **empty** repo on github.com (no README, no .gitignore — we already have one), and:
-
-```bash
-git remote add origin https://github.com/YOUR_USERNAME/VidCap.git
-git branch -M main && git push -u origin main
+git push -u origin main
 ```
 
 From now on, `git push` from the laptop and re-clone in the notebook to pick up changes.
@@ -51,18 +46,24 @@ upload the zip. Works, but you must re-upload after every code edit, which gets 
 
 ---
 
-## 3. Find and attach MSR-VTT
+## 3. Get MSR-VTT
 
-1. Kaggle → **Datasets** (left sidebar) → search `msr-vtt` or `msrvtt`.
-2. Open a few results and check the **Data** tab. You want one that has **both**:
-   - the video files (`.mp4`), and
-   - the annotation JSON (a file with `videodatainfo` in the name)
+**Don't download it to your laptop.** The notebook has internet and far better bandwidth than
+your house — fetch it there directly. 6.55 GB, verified live, no login:
 
-   Some mirrors ship only annotations, or only pre-extracted features. Those won't work — we
-   need actual video to extract frames from.
-3. Note its name. Prefer one with more upvotes and a recent update.
+```
+https://www.robots.ox.ac.uk/~maxbain/frozen-in-time/data/MSRVTT.zip
+```
 
-Dataset slugs change and mirrors get deleted, so verify by eye rather than trusting a link.
+This is the Frozen-in-Time mirror (Oxford VGG), the one most video-retrieval papers use. It
+contains all 10k `video*.mp4` under `MSRVTT/videos/all/` plus `MSRVTT/annotation/MSR_VTT.json`.
+Cells 3a/3b below do the fetch — nothing to click for this step.
+
+*Fallback if that URL ever dies:* Kaggle → **Datasets** (left sidebar) → search `msrvtt`, sort by
+**Most Votes**, and check the **Data** tab for **both** `.mp4` files and an annotation JSON. Many
+mirrors ship only pre-extracted features, which are useless here — we need real video to extract
+frames from. Two known ones: `vishnutheepb/msrvtt`, `mrandri19/msr-vtt`. Attach via **+ Add
+Input** (step 4) and it appears at `/kaggle/input/<slug>/`.
 
 ---
 
@@ -73,9 +74,8 @@ Dataset slugs change and mirrors get deleted, so verify by eye rather than trust
    - **Accelerator**: `GPU T4 x2` (or `GPU P100`)
    - **Internet**: **On** ← needed for `pip install` and `git clone`
    - **Persistence**: `Files only` is a good default
-3. Right-hand panel → **Input** → **+ Add Input** → search your MSR-VTT dataset → **Add**.
 
-It now appears under `/kaggle/input/<dataset-slug>/`.
+No **+ Add Input** needed — we fetch the data in Cell 3a. Internet **On** is what makes that work.
 
 ---
 
@@ -93,17 +93,28 @@ SigLIP will not load without it)
 **Cell 2 — get the code**
 ```python
 !rm -rf /kaggle/working/VidCap
-!git clone -q https://github.com/YOUR_USERNAME/VidCap.git /kaggle/working/VidCap
+!git clone -q https://github.com/Sampath7099/VidCap.git /kaggle/working/VidCap
 %cd /kaggle/working/VidCap
 ```
 
-**Cell 3 — look at what the dataset actually contains.** Do not skip this. Every mirror nests
-its folders differently, and you need the real paths before anything else works.
+**Cell 3a — fetch MSR-VTT** (~6.55 GB, a few minutes on Kaggle's network)
 ```python
-!ls /kaggle/input/
-!find /kaggle/input -name "*videodatainfo*" | head
-!find /kaggle/input -name "*.mp4" | head -3
-!find /kaggle/input -name "*.mp4" | wc -l
+!wget -q --show-progress https://www.robots.ox.ac.uk/~maxbain/frozen-in-time/data/MSRVTT.zip -O /kaggle/working/MSRVTT.zip
+```
+
+**Cell 3b — unpack and verify.** Do not skip the verify; a truncated download looks like a
+working one until the caching step quietly finds nothing.
+```python
+!unzip -q /kaggle/working/MSRVTT.zip -d /kaggle/working/data
+!find /kaggle/working/data -name "*.mp4" | wc -l
+!find /kaggle/working/data -iname "*MSR_VTT*.json" -o -iname "*videodatainfo*"
+```
+Expect **~10000** videos and at least one annotation JSON. If the count is near zero, the zip
+is incomplete — delete it and re-run Cell 3a.
+
+Delete the zip once unpacked, it's dead weight against the disk quota:
+```python
+!rm /kaggle/working/MSRVTT.zip
 ```
 
 **Cell 4 — confirm both backbones load on the GPU** (~2 min, downloads ~6 GB)
@@ -113,9 +124,9 @@ its folders differently, and you need the real paths before anything else works.
 Expect `vision ok on cuda dim=1152` and a Qwen line. If this fails, stop and fix it — nothing
 downstream can work.
 
-**Cell 5 — cache 500 clips first.** Use the folder from Cell 3 as `--root`.
+**Cell 5 — cache 500 clips first.**
 ```python
-!python -m scripts.build_cache msrvtt --root /kaggle/input/YOUR-DATASET-SLUG --limit 500
+!python -m scripts.build_cache msrvtt --root /kaggle/working/data --limit 500
 ```
 This reads videos, samples ~3 frames/second, runs SigLIP on each, and saves small `.npz` files.
 Roughly 10–20 minutes. Safe to re-run — it skips anything already done.
@@ -149,8 +160,9 @@ before 10,000. Finding a bug after 20 minutes beats finding it after 3 hours.
 
 ## 7. Keeping your results (important)
 
-When the session ends, `/kaggle/working/` is erased. To keep the embedding cache so you never
-recompute it:
+When the session ends, `/kaggle/working/` is erased — **including the videos from Cell 3a**. Next
+session you re-run Cell 3a and wait a few minutes. That's cheap; the expensive thing is the
+embedding cache, which costs GPU-hours off your weekly quota. Keep that:
 
 ```python
 !cd /kaggle/working && zip -qr cache.zip cache && ls -lh cache.zip
@@ -182,6 +194,9 @@ run, and it picks up where it stopped.
 - **Internet Off** → `pip install` and `git clone` both fail. Check the right panel.
 - **No GPU option** → phone verification not done (step 1).
 - **GPU quota** is ~30 h/week and resets weekly. Don't burn it on debugging — debug on 500 clips.
-- `/kaggle/input/` is **read-only**. Never try to write there.
-- Re-running Cell 2 wipes and re-clones the code, but leaves `cache/` alone — that's deliberate.
+- `/kaggle/input/` is **read-only**. Never try to write there. `/kaggle/working/` is where we put
+  the videos, so `--root` points there, not at `/kaggle/input`.
+- `/kaggle/working/` has a ~20 GB quota. The zip (6.5) + unpacked videos (6.5) is already 13 —
+  hence the `rm` after unzip. Skip it and Cell 5 can die on a full disk.
+- Re-running Cell 2 wipes and re-clones the code, but leaves `cache/` and `data/` alone — deliberate.
 - Restarting the session loses installed packages. Cell 1 runs again each time.

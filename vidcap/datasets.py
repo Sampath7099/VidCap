@@ -26,8 +26,16 @@ def msrvtt(root=None):
     root = Path(root or DATA / "msrvtt")
     vids = _find_videos(root)
     caps, splits = {}, {}
-    for js in sorted(root.rglob("*videodatainfo*.json")):
-        d = json.loads(Path(js).read_text())
+    # Mirrors disagree on the filename: the official release ships *videodatainfo*.json,
+    # the Frozen-in-Time zip ships MSR_VTT.json. Same schema, so accept either.
+    anns = sorted(p for p in root.rglob("*.json")
+                  if "videodatainfo" in p.name.lower() or "msr_vtt" in p.name.lower())
+    if not anns:
+        raise FileNotFoundError(
+            f"no MSR-VTT annotation JSON under {root} "
+            "(looked for *videodatainfo*.json and MSR_VTT.json)")
+    for js in anns:
+        d = json.loads(js.read_text())
         for v in d.get("videos", []):
             splits[v["video_id"]] = {"validate": "val"}.get(v.get("split"), v.get("split", "test"))
         for s in d.get("sentences", []):
