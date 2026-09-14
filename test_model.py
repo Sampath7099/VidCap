@@ -54,6 +54,24 @@ def test_lora_matches_base_dtype():
     del base
 
 
+def test_bf16_llm_with_fp32_connector():
+    """On CUDA the frozen decoder loads bf16 to fit a T4. The trainable connector stays
+    fp32 for AdamW, so the prefix must be cast at the boundary or the concat dies."""
+    m = VideoCaptioner(llm_name="distilgpt2", d_vis=64, n_prefix=4, lora_r=4,
+                       dtype=torch.bfloat16)
+    assert next(m.projector.parameters()).dtype == torch.float32, "projector must stay fp32"
+    f = torch.randn(2, 6, 64)
+    assert m.prefix(f).dtype == torch.bfloat16, "prefix not cast to the LLM's dtype"
+    ids = torch.randint(0, 1000, (2, 5))
+    loss, _ = m(f, ids, torch.ones_like(ids))
+    loss.backward()
+    g = [p.grad for p in m.projector.parameters() if p.grad is not None]
+    assert g and all(x.dtype == torch.float32 and x.isfinite().all() for x in g), \
+        "connector gradients must come back finite and fp32"
+    print("bf16 llm + fp32 connector ok (cast at prefix boundary, grads finite)")
+    del m
+
+
 def test_lora_targets_match_real_decoder():
     """Must use the REAL decoder: LoRA target names are architecture-specific, and a target
     that matches nothing yields zero adapters while every other check still passes."""
@@ -146,6 +164,7 @@ if __name__ == "__main__":
     test_blind_control_ignores_video()
     test_overfits_tiny_batch()
     test_lora_matches_base_dtype()
+    test_bf16_llm_with_fp32_connector()
     test_lora_targets_match_real_decoder()
     if HEAVY:
         require_ram(9.0, "real-config overfit")

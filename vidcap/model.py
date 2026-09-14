@@ -85,7 +85,13 @@ class VideoCaptioner(nn.Module):
         super().__init__()
         self.tok = AutoTokenizer.from_pretrained(llm_name)
         self.tok.pad_token = self.tok.pad_token or self.tok.eos_token
-        self.llm = AutoModelForCausalLM.from_pretrained(llm_name, dtype=dtype or torch.float32)
+        # The frozen decoder dominates GPU memory and Qwen2.5 ships bf16, so fp32 would
+        # cost 6.2GB of weights instead of 3.1GB for a model that is never updated —
+        # on a 16GB T4 that is the difference between fitting and OOM. CPU stays fp32
+        # (bf16 is slow there, and the tests run on CPU).
+        if dtype is None:
+            dtype = torch.bfloat16 if torch.cuda.is_available() else torch.float32
+        self.llm = AutoModelForCausalLM.from_pretrained(llm_name, dtype=dtype)
         d_llm = self.llm.config.hidden_size
         self.n_lora = apply_lora(self.llm, r=lora_r) if lora_r else 0
 
@@ -99,10 +105,15 @@ class VideoCaptioner(nn.Module):
         self.blind = blind  # control: zeroes the visual prefix, keeps everything else identical
 
     def prefix(self, frames):
-        """frames: (B, K, d_clip) -> (B, P, d_llm)"""
+        """frames: (B, K, d_clip) -> (B, P, d_llm), in the LLM's dtype.
+
+        Connector and projector stay fp32 — they are what AdamW actually updates, and
+        bf16 optimizer states converge worse. Casting here rather than at each call site
+        means forward, generate and decode all meet the LLM in its own dtype.
+        """
         if self.blind:
             frames = torch.zeros_like(frames)
-        return self.projector(self.connector(frames))
+        return self.projector(self.connector(frames)).to(self.llm.dtype)
 
     def forward(self, frames, input_ids, attention_mask=None):
         """Returns (loss, logits). input_ids are the caption; prefix positions are not predicted."""
