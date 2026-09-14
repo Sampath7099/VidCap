@@ -43,9 +43,12 @@ def load_model(name, device):
     ck = checkpoint.load(name, map_location=device)
     if ck is None:
         raise SystemExit(f"no checkpoint '{name}' — train it first")
-    a = ck.get("args", {})
-    m = VideoCaptioner(connector=a.get("connector", "resampler"),
-                       n_prefix=a.get("n_prefix", 8), lora_r=a.get("lora_r", 8),
+    # "arch" is the architecture actually built (train.arch_of). Fall back to raw args only for
+    # checkpoints written before that existed — and default lora_r to 0, since stage B has no
+    # adapters regardless of what --lora-r said.
+    a = ck.get("arch") or ck.get("args", {})
+    m = VideoCaptioner(connector=a.get("connector", "meanpool"),
+                       n_prefix=a.get("n_prefix", 8), lora_r=a.get("lora_r", 0),
                        blind=a.get("blind", False)).to(device).eval()
     # strict=False silently tolerates an architecture mismatch and then reports metrics from
     # randomly-initialised weights — worse than the crash it avoids. Load loosely, then refuse.
