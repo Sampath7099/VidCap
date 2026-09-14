@@ -102,6 +102,10 @@ class VideoCaptioner(nn.Module):
         else:
             self.connector, expand = TemporalTransformer(d_vis), 1
         self.projector = Projector(d_vis, d_llm, expand)
+        # SigLIP embeddings are large-magnitude and anisotropic (a red and a blue frame sit at
+        # 0.924 cosine). Feeding them raw into a cold connector is a known collapse recipe;
+        # every comparable system normalises first.
+        self.vis_norm = nn.LayerNorm(d_vis)
         self.blind = blind  # control: zeroes the visual prefix, keeps everything else identical
 
     def prefix(self, frames):
@@ -111,9 +115,10 @@ class VideoCaptioner(nn.Module):
         bf16 optimizer states converge worse. Casting here rather than at each call site
         means forward, generate and decode all meet the LLM in its own dtype.
         """
+        f = self.vis_norm(frames)
         if self.blind:
-            frames = torch.zeros_like(frames)
-        return self.projector(self.connector(frames)).to(self.llm.dtype)
+            f = torch.zeros_like(f)
+        return self.projector(self.connector(f)).to(self.llm.dtype)
 
     def forward(self, frames, input_ids, attention_mask=None):
         """Returns (loss, logits). input_ids are the caption; prefix positions are not predicted."""

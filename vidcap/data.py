@@ -22,6 +22,24 @@ def load_split(dataset, split=None, root=None, limit=None):
     return recs[:limit] if limit else recs
 
 
+def random_indices(n, k):
+    """K random frames, sorted. Used for TRAINING only.
+
+    Training on uniform frames and then evaluating a different selector is a confound: the
+    connector adapts to uniform's input statistics, so at eval uniform is in-distribution and
+    every other selector is out-of-distribution. Any selection comparison would then measure
+    that handicap rather than selection quality. Random frames make the connector
+    selection-agnostic by construction, so one trained model serves every selector fairly —
+    and it doubles as augmentation over a thin 200k pairs.
+
+    Module-level `random` is deliberate: DataLoader reseeds it per worker per epoch, so the
+    sample actually varies. self.rng would be copied identically into every worker.
+    """
+    if n <= k:
+        return list(range(n)) + [n - 1] * (k - n)
+    return sorted(random.sample(range(n), k))
+
+
 def uniform_indices(n, k):
     """Evenly spaced over the pool, both ends included. The default this project aims to beat."""
     if n <= k:
@@ -34,7 +52,10 @@ class VideoCaptionDataset(Dataset):
 
     def __init__(self, dataset, records, k=8, select=None, train=True, seed=0):
         self.dataset, self.records, self.k, self.train = dataset, records, k, train
-        self.select = select or (lambda emb, k: uniform_indices(len(emb), k))
+        # Train: random frames (selection-agnostic, see random_indices). Val/eval: uniform,
+        # so the held-out number is a fixed, reproducible reference point.
+        default = random_indices if train else uniform_indices
+        self.select = select or (lambda emb, k: default(len(emb), k))
         self.rng = random.Random(seed)
 
     def __len__(self):
