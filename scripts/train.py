@@ -96,7 +96,14 @@ def main():
     # mininterval: see build_cache — committed Kaggle runs log every tqdm redraw.
     bar = tqdm(total=args.epochs * len(dl), initial=step, desc=name,
                unit="step", mininterval=30)
-    for ep in range(args.epochs):
+    # Resume at epoch granularity. `for ep in range(args.epochs)` restarted from 0 on every
+    # resume, so a killed run came back and trained args.epochs MORE epochs instead of
+    # finishing the original ones — the 12h-kill recovery this project depends on was silently
+    # doing the wrong thing. Partial epochs are re-done; that is the intended granularity.
+    start_ep = step // max(len(dl), 1)
+    if start_ep >= args.epochs:
+        print(f"{name} already completed {args.epochs} epochs at step {step}; nothing to do")
+    for ep in range(start_ep, args.epochs):
         for frames, ids, mask in dl:
             loss, _ = model(frames.to(device), ids.to(device), mask.to(device))
             opt.zero_grad()

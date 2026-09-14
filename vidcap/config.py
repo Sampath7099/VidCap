@@ -17,9 +17,13 @@ LLM_MODEL = "Qwen/Qwen2.5-1.5B-Instruct"
 # Attention projections LoRA wraps. Covers Qwen (q/k/v/o_proj) and GPT-2 (c_attn).
 LORA_TARGETS = ("q_proj", "k_proj", "v_proj", "o_proj", "c_attn")
 
-# Candidate-pool density. Pool must stay well above the largest frame budget (16) or
-# uniform/heuristic/learned selection collapse to the same frames and the Phase 8
-# comparison measures nothing. MSR-VTT clips are ~15s, so 1fps would fail at K=16.
+# Candidate-pool density. The pool must stay above the largest frame budget (16) or every
+# selector is forced to pick the same frames and the Phase 8 comparison is vacuous.
+# NOTE: density alone does NOT create selection headroom. Sampling 15s of single-shot MSR-VTT
+# at 3fps yields near-duplicate frames, so any K of them carry the same gist and the expected
+# selection effect there is ~0. Headroom comes from temporal diversity — long videos with
+# sparse events — which is why the decisive evaluation needs ActivityNet-style data, not a
+# higher fps. Treat MSR-VTT as the captioner's training set, not as the selection benchmark.
 POOL_FPS = {"msrvtt": 3.0, "holdout": 2.0, "tvsum": 1.0, "summe": 1.0, "activitynet": 1.0}
 DEFAULT_POOL_FPS = 1.0
 MIN_POOL_FRAMES = 32           # pool floor; short clips get denser sampling to reach it
