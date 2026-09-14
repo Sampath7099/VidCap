@@ -147,6 +147,20 @@ class VideoCaptioner(nn.Module):
                                 pad_token_id=self.tok.pad_token_id)
         return [self.tok.decode(o, skip_special_tokens=True).strip() for o in out]
 
+    @staticmethod
+    def _is_frozen_llm_key(k):
+        """True for the frozen decoder's own weights; LoRA adapters live under llm.* too."""
+        return k.startswith("llm.") and not k.endswith((".A", ".B"))
+
+    def trainable_state_dict(self):
+        """Only what training changes: connector, projector, vis_norm, LoRA adapters.
+
+        The frozen decoder is ~3.2GB per checkpoint and is rebuilt from HF on load, so saving
+        it wasted the entire /kaggle/working quota after three checkpoints and made torch.save
+        fail mid-write with no space left.
+        """
+        return {k: v for k, v in self.state_dict().items() if not self._is_frozen_llm_key(k)}
+
     def trainable_parameters(self):
         return list(self.connector.parameters()) + list(self.projector.parameters()) \
             + lora_parameters(self.llm)
