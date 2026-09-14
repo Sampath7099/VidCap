@@ -16,8 +16,12 @@ class LoRALinear(nn.Module):
         # Conv1D stores weight as (in, out); nn.Linear as (out, in).
         d_in, d_out = base.weight.shape if base.weight.ndim == 2 and _is_conv1d(base) \
             else (base.weight.shape[1], base.weight.shape[0])
-        self.A = nn.Parameter(torch.empty(d_in, r))
-        self.B = nn.Parameter(torch.zeros(r, d_out))
+        # Match the base layer's dtype/device. Qwen2.5 checkpoints carry bfloat16 in their
+        # config, and transformers honours it by default, so a hardcoded fp32 adapter
+        # dies in the matmul with "expected m1 and m2 to have the same dtype".
+        w = base.weight
+        self.A = nn.Parameter(torch.empty(d_in, r, dtype=w.dtype, device=w.device))
+        self.B = nn.Parameter(torch.zeros(r, d_out, dtype=w.dtype, device=w.device))
         nn.init.kaiming_uniform_(self.A, a=math.sqrt(5))
         self.scale = alpha / r
         self.drop = nn.Dropout(dropout)

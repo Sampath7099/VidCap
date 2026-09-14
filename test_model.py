@@ -35,11 +35,33 @@ def require_ram(gb, what):
                          f"Close something or run this on Kaggle.")
 
 
+def test_lora_matches_base_dtype():
+    """Adapters must adopt the base layer's dtype. Qwen2.5 loads as bf16 by default under
+    newer transformers; a hardcoded fp32 adapter fails the matmul. distilgpt2 in bf16
+    reproduces it without needing 3GB of Qwen."""
+    from transformers import AutoModelForCausalLM
+    base = AutoModelForCausalLM.from_pretrained("distilgpt2", dtype=torch.bfloat16).eval()
+    ids = torch.randint(0, 1000, (2, 8))
+    with torch.no_grad():
+        before = base(ids).logits.clone()
+    n = apply_lora(base, r=4)
+    assert n > 0
+    assert all(p.dtype == torch.bfloat16 for p in lora_parameters(base)), "adapter dtype drifted"
+    with torch.no_grad():
+        after = base(ids).logits          # must not raise, and zero-init must be exact
+    assert torch.equal(before, after), "zero-init LoRA perturbed the bf16 base"
+    print(f"lora dtype ok ({n} adapters, bf16 base, zero-init exact)")
+    del base
+
+
 def test_lora_targets_match_real_decoder():
     """Must use the REAL decoder: LoRA target names are architecture-specific, and a target
     that matches nothing yields zero adapters while every other check still passes."""
     from transformers import AutoModelForCausalLM
-    require_ram(7.0, f"{LLM_MODEL} in fp32")
+    # Loads bf16 (~3.1GB resident), not fp32 — Qwen2.5's config carries bfloat16 and
+    # transformers honours it. The 7GB is for the load-time spike, not the weights:
+    # measured OOM under a 6GB cgroup cap even though the model settles near 3GB.
+    require_ram(7.0, f"{LLM_MODEL} (bf16 weights, higher transient during load)")
     base = AutoModelForCausalLM.from_pretrained(LLM_MODEL).eval()
     ids = torch.randint(0, 1000, (2, 12))
     with torch.no_grad():
@@ -123,6 +145,7 @@ if __name__ == "__main__":
     test_uniform_select()
     test_blind_control_ignores_video()
     test_overfits_tiny_batch()
+    test_lora_matches_base_dtype()
     test_lora_targets_match_real_decoder()
     if HEAVY:
         require_ram(9.0, "real-config overfit")
