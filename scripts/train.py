@@ -15,10 +15,19 @@ from vidcap.data import VideoCaptionDataset, load_split, make_collate
 from vidcap.model import VideoCaptioner
 
 
+def arch_of(args):
+    """The architecture actually built — NOT vars(args).
+
+    --lora-r is 8 by default but stage B builds with 0, so saving raw args made evaluate.py
+    rebuild a LoRA-wrapped model for a checkpoint that has no adapters, and every key mismatched.
+    One function, used by both build() and every save, so the two cannot disagree.
+    """
+    return {"connector": args.connector, "n_prefix": args.n_prefix,
+            "lora_r": args.lora_r if args.stage == "C" else 0, "blind": args.blind}
+
+
 def build(args, device):
-    m = VideoCaptioner(connector=args.connector, n_prefix=args.n_prefix,
-                       lora_r=args.lora_r if args.stage == "C" else 0,
-                       blind=args.blind).to(device)
+    m = VideoCaptioner(**arch_of(args)).to(device)
     if args.stage == "C" and args.init:
         ck = checkpoint.load(args.init, map_location=device)
         if ck is None:
@@ -115,13 +124,13 @@ def main():
             if step % 25 == 0:
                 bar.set_postfix(ep=ep, loss=f"{loss.item():.4f}")
             if step % args.save_every == 0:
-                checkpoint.save(name, step, model, opt, args=vars(args))
+                checkpoint.save(name, step, model, opt, args=vars(args), arch=arch_of(args))
         vl = evaluate_loss(model, vdl, device) if vdl else float("nan")
         print(f"== epoch {ep} done | val loss {vl:.4f}", flush=True)
-        checkpoint.save(name, step, model, opt, args=vars(args), val_loss=vl)
+        checkpoint.save(name, step, model, opt, args=vars(args), arch=arch_of(args), val_loss=vl)
 
     bar.close()
-    checkpoint.save(name, step, model, opt, args=vars(args))
+    checkpoint.save(name, step, model, opt, args=vars(args), arch=arch_of(args))
     print(f"saved {name} @ step {step}")
 
 
