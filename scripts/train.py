@@ -32,9 +32,14 @@ def build(args, device):
         ck = checkpoint.load(args.init, map_location=device)
         if ck is None:
             raise SystemExit(f"--init {args.init}: no such checkpoint (run stage B first)")
-        missing = m.load_state_dict(ck["model"], strict=False)
-        print(f"init from {args.init} @ step {ck['step']} "
-              f"({len(missing.missing_keys)} new keys = LoRA adapters)")
+        # Stage C legitimately adds LoRA adapters the stage-B checkpoint lacks, so this is the
+        # one place a partial load is correct — restore() would reject the extra keys.
+        info = m.load_state_dict(ck["model"], strict=False)
+        new = [k for k in info.missing_keys if k.endswith((".A", ".B"))]
+        if info.unexpected_keys:
+            raise SystemExit(f"--init {args.init}: not a stage-B checkpoint for this "
+                             f"architecture ({len(info.unexpected_keys)} unexpected keys)")
+        print(f"init from {args.init} @ step {ck['step']} ({len(new)} new keys = LoRA adapters)")
     return m
 
 

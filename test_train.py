@@ -78,6 +78,24 @@ def test_train_step_and_resume():
     print("checkpoint round-trip ok")
 
 
+def test_checkpoint_excludes_frozen_decoder():
+    """The frozen decoder must never be written. At real config it is ~3.2GB per checkpoint,
+    is rebuilt from HF on load, and saving it filled /kaggle/working until torch.save died
+    mid-write with 'no space left on device'."""
+    m = VideoCaptioner(llm_name="distilgpt2", d_vis=VISION_DIM, n_prefix=8,
+                       connector="meanpool", lora_r=0)
+    sd = m.trainable_state_dict()
+    leaked = [k for k in sd if k.startswith("llm.") and not k.endswith((".A", ".B"))]
+    assert not leaked, f"frozen decoder leaked into the checkpoint: {leaked[:3]}"
+    assert any(k.startswith("projector.") for k in sd), "projector missing"
+    assert any(k.startswith("vis_norm.") for k in sd), "vis_norm missing"
+    full = sum(v.numel() for v in m.state_dict().values())
+    kept = sum(v.numel() for v in sd.values())
+    assert kept < 0.5 * full, f"checkpoint not meaningfully smaller ({kept}/{full})"
+    print(f"checkpoint excludes frozen decoder ok ({100*kept/full:.0f}% of full state_dict)")
+    del m
+
+
 def test_frozen_backbone_unchanged_by_training():
     """Stage B must not move the LLM at all — only connector/projector."""
     torch.manual_seed(0)
@@ -97,5 +115,6 @@ def test_frozen_backbone_unchanged_by_training():
 
 if __name__ == "__main__":
     test_train_step_and_resume()
+    test_checkpoint_excludes_frozen_decoder()
     test_frozen_backbone_unchanged_by_training()
     print(f"\ntraining gates passed ({TMP})")
