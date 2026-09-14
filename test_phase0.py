@@ -165,10 +165,24 @@ def test_checkpoint_resume():
     print("checkpoint resume ok")
 
 
+def test_checkpoint_rejects_wrong_architecture():
+    """Changing --connector/--n-prefix makes an old checkpoint structurally incompatible.
+    It must say so in one readable line, not dump a wall of state_dict keys."""
+    a = torch.nn.Linear(4, 2)
+    checkpoint.save("arch", 1, a, args={"connector": "resampler", "n_prefix": 8})
+    try:
+        checkpoint.load("arch", torch.nn.Linear(4, 8))   # different shape = different arch
+        raise SystemExit("FAIL: incompatible checkpoint loaded silently")
+    except RuntimeError as e:
+        assert "different architecture" in str(e) and "resampler" in str(e), e
+    print("checkpoint architecture guard ok")
+
+
 if __name__ == "__main__":
     test_sampling()
     test_cache_resumable()
     test_msrvtt_loader_and_leakage()
     test_msrvtt_frozen_in_time_naming()
     test_checkpoint_resume()
+    test_checkpoint_rejects_wrong_architecture()
     print(f"\nall phase 0 checks passed  ({TMP})")

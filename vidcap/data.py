@@ -56,7 +56,7 @@ class VideoCaptionDataset(Dataset):
         # so the held-out number is a fixed, reproducible reference point.
         default = random_indices if train else uniform_indices
         self.select = select or (lambda emb, k: default(len(emb), k))
-        self.rng = random.Random(seed)
+        self.rng = random.Random(seed)   # kept for callers that want deterministic sampling
 
     def __len__(self):
         return len(self.records)
@@ -73,7 +73,11 @@ class VideoCaptionDataset(Dataset):
         idx = self.select(emb, self.k)
         frames = torch.from_numpy(np.ascontiguousarray(emb[idx])).float()
         caps = r["captions"] or [""]
-        cap = self.rng.choice(caps) if self.train else caps[0]
+        # Module-level random, not self.rng: DataLoader copies the dataset into each worker,
+        # so a seeded Random() gives every worker the same stream and the "different caption
+        # per epoch" augmentation — context.md's main defence against overfitting a thin
+        # dataset — never actually varied. DataLoader reseeds `random` per worker per epoch.
+        cap = random.choice(caps) if self.train else caps[0]
         return frames, cap
 
 

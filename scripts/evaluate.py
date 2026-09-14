@@ -47,7 +47,15 @@ def load_model(name, device):
     m = VideoCaptioner(connector=a.get("connector", "resampler"),
                        n_prefix=a.get("n_prefix", 8), lora_r=a.get("lora_r", 8),
                        blind=a.get("blind", False)).to(device).eval()
-    m.load_state_dict(ck["model"], strict=False)
+    # strict=False silently tolerates an architecture mismatch and then reports metrics from
+    # randomly-initialised weights — worse than the crash it avoids. Load loosely, then refuse.
+    info = m.load_state_dict(ck["model"], strict=False)
+    if info.missing_keys or info.unexpected_keys:
+        raise SystemExit(
+            f"checkpoint '{name}' does not match the model it describes "
+            f"({len(info.missing_keys)} missing, {len(info.unexpected_keys)} unexpected keys).\n"
+            f"  saved args: { {k: v for k, v in a.items() if k in ('connector','n_prefix','lora_r')} }\n"
+            f"  retrain it, or evaluate a checkpoint written by this version of the code.")
     return m, a
 
 
