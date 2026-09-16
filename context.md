@@ -343,3 +343,35 @@ Caveats to carry into the README, not to discover later:
    construction. That inflates it relative to a human notion of importance. This is exactly what
    the TVSum/SumMe validation exists to answer, and it must be framed that way.
 3. 500 clips, greedy. ~0.005 differences are noise; +0.0725 is not.
+
+## HEADLINE RESULT — learned frame selection (2026-09-15)
+
+`evaluate --ckpt stageB --scorer scorer --oracle --limit 500 --budgets 1,2,3,4`, CIDEr-D:
+
+| K | uniform | motion | **learned** | oracle | learned-uniform | % of ceiling |
+|---|---|---|---|---|---|---|
+| 1 | 0.4495 | 0.4572 | **0.4966** | 0.5220 | **+0.0471** | **65%** |
+| 2 | 0.4893 | 0.4804 | **0.5066** | 0.5273 | +0.0173 | 46% |
+| 3 | 0.5246 | 0.5136 | 0.5202 | 0.5359 | -0.0044 | — |
+| 4 | 0.5397 | 0.5125 | 0.5238 | 0.5443 | -0.0159 | — |
+
+**The claim: learned K=1 (0.4966) > uniform K=2 (0.4893).** One learned frame beats two uniform
+ones — ~2x budget reduction at equal quality, matching PLAN.md's success condition. BLEU-4 agrees
+and is stronger: learned beats uniform at EVERY budget (K=1 0.3881 vs 0.3514; K=4 0.4007 vs
+0.3945), and learned K=2 (0.3942) ~= uniform K=4 (0.3945).
+
+The honest other half: on CIDEr the advantage inverts at K>=3 (-0.0044, -0.0159). Mechanism is
+clear — top-K by relevance has **no diversity term**, so the highest-scoring frames are often
+near-duplicates of one moment while uniform spreads across time. Report it; do not bury it. The
+obvious fix (MMR / redundancy penalty against already-picked frames) is the strongest cheap
+follow-up and would likely make the win hold at every budget.
+
+Motion is a genuine null: it never beats uniform except marginally at K=1 (0.4572 vs 0.4495) and
+is clearly worse at K>=3. The classical heuristic does not work here.
+
+Still open before this is defensible:
+1. **TVSum/SumMe validation** — the circularity objection (scorer trained on SigLIP-caption
+   similarity, captioner consumes SigLIP) is the first thing an interviewer will find. Human
+   importance labels are the only answer. Needs those datasets cached.
+2. Scorer val Spearman not yet recorded here.
+3. 500 clips, greedy decode. ~0.005 is noise; +0.0471 is not.
