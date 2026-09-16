@@ -97,7 +97,8 @@ no re-embedding.
 | 5 | **new** | Cheap proxy check | superseded by the oracle arm (step 3.5) |
 | 6 | Phase 8 | Headline quality-vs-budget curves | **DONE** at K=1,2,3,4 |
 | 6b | **new** | **Diversity-aware selection** (redundancy penalty) | **NOT DONE** — would fix the K>=3 reversal |
-| 7 | Phases 9,10,11 | Ablations, end-to-end usability, packaging | **NOT DONE** — the demo is a hard gate |
+| 7a | Phase 10 | End-to-end usability: video file in, caption out | **DONE** — `scripts/caption.py`; still to be run on self-shot clips |
+| 7b | Phases 9,11 | Ablations, packaging | **NOT DONE** — ablations are optional, README is not |
 
 **Two corrections this plan got wrong, learned by measurement:**
 
