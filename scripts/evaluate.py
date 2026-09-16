@@ -58,6 +58,27 @@ def make_oracle(dataset):
     return oracle
 
 
+def make_learned(name, device):
+    """THE CONTRIBUTION — top-K by predicted relevance, from pixels alone.
+
+    Same shape as the oracle but without the caption, so the gap between them is exactly how
+    much of the ceiling the scorer actually recovers.
+    """
+    from vidcap.scorer import FrameScorer
+    model = FrameScorer().to(device).eval()
+    if checkpoint.load(name, model, map_location=device) is None:
+        raise SystemExit(f"no scorer checkpoint '{name}' — run scripts/train_scorer.py first")
+
+    @torch.no_grad()
+    def learned(emb, k, rec=None):
+        if len(emb) <= k:
+            return uniform_indices(len(emb), k)
+        s = model(torch.from_numpy(emb).float()[None].to(device))[0].cpu().numpy()
+        return sorted(np.argsort(-s)[:k].tolist())
+
+    return learned
+
+
 def uniform_sel(emb, k, rec=None):
     """Adapter: uniform_indices takes a pool size, the selector protocol takes the pool."""
     return uniform_indices(len(emb), k)
@@ -110,6 +131,8 @@ def main():
     ap.add_argument("--root", default=None)
     ap.add_argument("--budgets", default="2,4,8,16")
     ap.add_argument("--beam", type=int, default=1)
+    ap.add_argument("--scorer", default=None,
+                    help="scorer checkpoint name; adds the learned selection arm")
     ap.add_argument("--oracle", action="store_true",
                     help="add the cheating ceiling arm (uses ground-truth captions)")
     ap.add_argument("--limit", type=int, default=None)
@@ -128,6 +151,8 @@ def main():
                "beam": args.beam, "curves": {}}
 
     selectors = dict(SELECTORS)
+    if args.scorer:
+        selectors["learned"] = make_learned(args.scorer, device)
     if args.oracle:
         selectors["oracle"] = make_oracle(args.dataset)
     for sel_name, sel in selectors.items():

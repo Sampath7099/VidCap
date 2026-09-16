@@ -27,7 +27,7 @@ run() {
 }
 
 fail=0
-for t in test_phase0.py test_model.py test_pipeline.py test_train.py; do
+for t in test_phase0.py test_model.py test_pipeline.py test_train.py test_scorer.py; do
   run python3 "$t" || { echo "FAILED: $t"; fail=1; }
 done
 run python3 -m scripts.validate_metrics || fail=1
