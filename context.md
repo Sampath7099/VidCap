@@ -376,45 +376,62 @@ Still open before this is defensible:
 2. Scorer val Spearman not yet recorded here.
 3. 500 clips, greedy decode. ~0.005 is noise; +0.0471 is not.
 
-## NEXT ACTIONS — read this first on resuming (2026-09-17)
+## STATUS — read this first on resuming (2026-09-17)
 
-**State: both halves of the project have a measured result. What remains is strengthening and
-packaging, not "will this work".**
+**Both halves of the project have a measured result. Every hard requirement in this document is
+met. What remains is validation and packaging, not "will this work".**
 
-Artifacts and where they live (nothing valuable is only in a Kaggle session):
-- Embedding cache, 10k clips, 8.5 GPU-h — Kaggle Dataset
-- `stageB.pt` + `blind.pt`, 4.6 GPU-h — Kaggle Dataset
-- `scorer.pt` + `eval_msrvtt_test.json` — **regenerate and save as `results.zip`**; the originals
-  were lost to an accelerator change mid-session. Retraining the scorer costs ~5 min, the eval
-  ~25 min. Numbers will shift slightly from those recorded above; use the regenerated ones so
-  every claim traces to the checkpoint actually shipped.
+### Where everything lives
 
-Kaggle session recipe (a fresh session needs all four): clone the repo; re-download MSRVTT.zip
-from the Oxford mirror (~2 min — the loader enumerates clips by scanning video files, even though
-training reads only cached shards); symlink the cache Dataset to `/kaggle/working/cache`; copy the
-checkpoints Dataset to `/kaggle/working/checkpoints`. `VIDCAP_DATA=/kaggle/working/data` must be
-set in the kernel or subprocesses fall back to `/kaggle/input`.
+| Artifact | Cost to rebuild | Stored as |
+|---|---|---|
+| Embedding cache, 10k clips | 8.5 GPU-h | Kaggle Dataset |
+| `stageB.pt` + `blind.pt` | 4.6 GPU-h | Kaggle Dataset |
+| `scorer.pt` + `eval_msrvtt_test.json` | ~30 min | Kaggle Dataset (`results.zip`) |
+| All code | — | github.com/Sampath7099/VidCap (public) |
 
-Remaining work, in priority order:
+Nothing valuable exists only inside a Kaggle session. One was lost that way already (an
+accelerator change wipes `/kaggle/working`) — zip and publish as a Dataset before closing.
 
-1. **Diversity-aware selection** (~1 h, 20 min GPU). Top-K by relevance picks near-duplicates of
-   one moment, which is why uniform wins at K>=3. Add a redundancy penalty against already-picked
-   frames (MMR-style). Upgrades the claim from "helps at tight budgets" to "helps at every
-   budget", and the before/after is itself a finding about relevance-vs-diversity.
-2. **The demo — a hard gate, currently untouched.** Requirement #1 of this document is "real
-   video in, real caption out". Every path today runs on cached embeddings; nothing accepts an
-   .mp4. Needs ~100 lines wiring video -> frames -> SigLIP -> scorer -> captioner, then a run on
-   the self-shot holdout (never trained on, never scored). Without this it is an experiment, not
-   a project.
-3. **TVSum/SumMe validation** (~3 h, mostly caching). The circularity objection — scorer trained
-   on SigLIP-caption similarity, captioner consumes SigLIP — is the first thing an interviewer
-   will find. Human importance labels are the only rebuttal.
-4. **Stage C LoRA** (~1 h GPU). Quality bump, low risk, low insight.
-5. **README/packaging.** Four-arm curves, from-scratch ledger, explicit limitations: the oracle
-   is unreachable, the K>=3 reversal, the circularity, and 500-clip greedy-decode noise (~0.005).
+### Fresh Kaggle session recipe
 
-Not yet recorded anywhere: the scorer's validation Spearman. Capture it from `train_scorer`'s
-per-epoch output when regenerating.
+Four things, all needed: clone the repo; re-download MSRVTT.zip from the Oxford mirror (~2 min —
+the loader enumerates clips by scanning video files even though training reads only cached
+shards); symlink the cache Dataset to `/kaggle/working/cache`; copy the checkpoints Dataset to
+`/kaggle/working/checkpoints`. `VIDCAP_DATA=/kaggle/working/data` must be set in the kernel or
+subprocesses fall back to `/kaggle/input`. After a kernel restart, re-run the clone and path cells
+first — `%cd` and `os.environ` do not survive.
+
+### Done
+
+- Stage 0 caching, Stage B connector training, blind control, oracle ceiling, frame scorer,
+  four-arm budget curves, end-to-end demo (`scripts/caption.py`).
+- Results: see REGENERATED HEADLINE and Scorer correctness below. Use the 2026-09-17 numbers.
+
+### Remaining, in priority order
+
+1. **Run the demo on self-shot clips** (~1 h). `python -m scripts.caption clip.mp4 --k 1
+   --select learned,uniform` prints both captions and the chosen timestamps — the qualitative
+   figure and the usability check in one command. Clips must never be trained on or scored.
+2. **TVSum/SumMe validation** (~3 h, mostly caching). The circularity objection — scorer trained
+   on SigLIP-caption similarity, captioner consumes SigLIP — is the sharpest available criticism.
+   Human importance labels are the only rebuttal. Loaders exist in `datasets.py` but have never
+   seen real files; expect small fixes on first run.
+3. **Stage C LoRA** (~1 h GPU). Quality bump, low risk, low insight.
+4. **README/packaging** (~3 h). Four-arm curves, from-scratch ledger, and a limitations section
+   stating plainly: the oracle is unreachable, CIDEr at K=4 is a marginal loss, run-to-run noise
+   is ~0.007, and scorer and captioner share a representation.
+5. **Optional**: diversity-aware selection; best-by-val checkpointing (see Scorer correctness);
+   connector and LoRA-rank ablations. None are load-bearing for the claim.
+
+Realistically 8-12 h across three or four sessions. No open technical risk remains.
+
+### Next project phase (planned separately)
+
+Video QA / summarisation as an extension, NOT a standalone rebuild — MSRVTT-QA is built on the
+same 10k videos already cached, so the expensive asset carries over. The natural contribution is
+**query-conditioned frame selection**: which frames matter depends on the question asked, which
+is a stronger version of the selector already built. Finish and package part one first.
 
 ## REGENERATED HEADLINE (2026-09-17) — use these numbers, not the 2026-09-15 ones
 
