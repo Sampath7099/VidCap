@@ -415,3 +415,32 @@ Remaining work, in priority order:
 
 Not yet recorded anywhere: the scorer's validation Spearman. Capture it from `train_scorer`'s
 per-epoch output when regenerating.
+
+## REGENERATED HEADLINE (2026-09-17) — use these numbers, not the 2026-09-15 ones
+
+The 2026-09-15 scorer was lost to an accelerator change. Retrained and re-evaluated; these
+figures match `scorer.pt` as shipped in `results.zip`. CIDEr-D, 500 test clips, greedy:
+
+| K | uniform | motion | **learned** | oracle | learned-uniform | % of ceiling |
+|---|---|---|---|---|---|---|
+| 1 | 0.4495 | 0.4572 | **0.4977** | 0.5220 | **+0.0482** | **66%** |
+| 2 | 0.4893 | 0.4804 | **0.5107** | 0.5273 | +0.0214 | 56% |
+| 3 | 0.5246 | 0.5136 | **0.5270** | 0.5359 | +0.0024 | 21% |
+| 4 | 0.5397 | 0.5125 | 0.5302 | 0.5443 | -0.0095 | — |
+
+**Headline: learned K=1 (0.4977) > uniform K=2 (0.4893)** — one learned frame beats two uniform
+ones, a 2x budget cut at equal quality, recovering 66% of the oracle ceiling with no caption.
+
+**On BLEU-4 and ROUGE-L, learned beats uniform at EVERY budget** (BLEU-4 0.3886/0.3853/0.4044/
+0.4004 vs 0.3514/0.3806/0.3977/0.3945; ROUGE-L 0.5990/0.6046/0.6123/0.6123 vs 0.5871/0.5975/
+0.6101/0.6089). Only 1 of 12 metric-budget cells is a loss: CIDEr at K=4.
+
+**Run-to-run noise is now measured, not guessed.** Two independent scorer trainings differ by
+~0.007 CIDEr (K=1 0.4966 vs 0.4977; K=3 0.5202 vs 0.5270). So the -0.0095 at K=4 is barely above
+the noise floor — report it as marginal, not as a defeat. Any claim resting on a gap under ~0.01
+needs more seeds before it is asserted.
+
+The K>=3 reversal seen on 2026-09-15 did NOT reproduce (learned now wins K=3). The
+diversity/redundancy hypothesis for it is therefore unconfirmed — it may have been noise. If
+diversity-aware selection is implemented, treat it as an improvement to test, not as a fix for a
+known defect, and run multiple seeds before claiming either way.
