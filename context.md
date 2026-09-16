@@ -444,3 +444,20 @@ The K>=3 reversal seen on 2026-09-15 did NOT reproduce (learned now wins K=3). T
 diversity/redundancy hypothesis for it is therefore unconfirmed — it may have been noise. If
 diversity-aware selection is implemented, treat it as an improvement to test, not as a fix for a
 known defect, and run multiple seeds before claiming either way.
+
+## Scorer correctness (2026-09-17)
+
+`train_scorer --epochs 20`, 6513 train / 497 val, 0.72M params, ~12 min.
+
+**Val Spearman ~0.51** between predicted frame ranking and the CLIP-proxy target on held-out
+clips. Meaningfully positive — PLAN.md Phase 1's proxy exit criterion is met. The human
+ground-truth half (TVSum/SumMe) is still outstanding and is the stronger claim.
+
+**The scorer converges in ONE epoch and then mildly overfits**: epoch 0 val loss 3.6871 /
+rho +0.5271, drifting to 3.7238 / +0.5137 by epoch 19. `--epochs 3` is enough; 20 wastes ~10 min
+and ends slightly worse.
+
+**Known defect: checkpoint.save overwrites each epoch, so the SHIPPED scorer is epoch 19, not the
+best epoch.** The headline numbers were therefore produced by a slightly-worse-than-best scorer —
+the result is understated, not inflated. Fix is to keep a separate best-by-val checkpoint; the
+same applies to stageB (best ep6 2.7408 vs shipped ep9 2.7424, negligible there).
