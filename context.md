@@ -277,3 +277,37 @@ memory does not page to disk and OOM-kill — it thrashes zram and locks up the 
 
 ## Reference
 Full phased execution plan: `PLAN.md` in this same folder. Project history/pivot reasoning (not needed for day-to-day coding): `~/Desktop/project_requirements_and_constraints.md`.
+
+## PART ONE COMPLETE — full-scale Stage B (2026-09-15)
+
+6,513 train / 497 val, 10 epochs, 4,070 steps, meanpool, bs=16, ~2h20 per arm.
+
+Val loss: 2.9248 → **2.7408 (best, ep6)** → 2.7424 flat to ep9. Blind plateaus at 3.21.
+No overfitting; 10 epochs was right, ~7 would have done.
+
+Test (500 clips, greedy):
+
+| K | uniform CIDEr | motion CIDEr |
+|---|---|---|
+| 2 | 0.4893 | 0.4804 |
+| 4 | **0.5397** | 0.5125 |
+| 8 | 0.5376 | 0.5393 |
+| 16 | 0.5387 | 0.5445 |
+
+Blind @K=16: CIDEr **0.1027**. Gap **+0.4360**. BLEU-4 0.4064 vs 0.2321.
+
+CIDEr ~0.54 / BLEU-4 ~0.41 sits inside the published MSR-VTT baseline band (~0.45-0.60 CIDEr),
+with 46M trainable params on a free T4. **The captioner is done and competitive.**
+
+### The finding that governs phase 8
+
+**Quality saturates at K=4.** K=4/8/16 are 0.5397/0.5376/0.5387 — indistinguishable. Motion ~=
+uniform everywhere. So on MSR-VTT no selector can beat uniform at K>=4: four evenly-spaced frames
+already give the model everything it can use. The only budget with headroom left is K=2
+(0.4893, i.e. 0.05 below saturation).
+
+This is the predicted no-headroom result and it means MSR-VTT cannot host the headline
+frame-selection experiment. Unresolved: whether the data is genuinely frame-redundant or
+whether mean-pool is too coarse to notice which frames it received. The oracle arm
+(`evaluate --oracle`) separates those two and must be run before any scorer work.
+

@@ -74,18 +74,43 @@ def _fake_cache(dataset, ids, n_frames=40):
 
 
 def test_selector_protocol():
-    """Every entry in evaluate.SELECTORS is called as sel(emb, k) by eval_batches, so all
-    of them must take the pool array — not a pool size. Registering a size-taking function
-    here raised 'truth value of an array is ambiguous' only once that arm actually ran."""
+    """Every entry in evaluate.SELECTORS is called as sel(emb, k, rec) by eval_batches, so all
+    of them must accept the pool array and the record — not a pool size. Registering a
+    size-taking function raised 'truth value of an array is ambiguous' only once that arm ran."""
     from scripts.evaluate import SELECTORS
     emb = np.random.randn(20, 16).astype(np.float32)
+    rec = {"video_id": "video0", "captions": ["a man is talking"]}
     for name, sel in SELECTORS.items():
-        idx = sel(emb, 4)
+        idx = sel(emb, 4, rec)
         assert len(idx) == 4, f"{name} returned {len(idx)} indices for k=4"
         assert all(isinstance(i, int) and 0 <= i < len(emb) for i in idx), f"{name}: {idx}"
-        short = sel(emb[:2], 4)          # pool smaller than the budget must still pad to k
+        short = sel(emb[:2], 4, rec)     # pool smaller than the budget must still pad to k
         assert len(short) == 4, f"{name} gave {len(short)} for a 2-frame pool"
     print(f"selector protocol ok ({', '.join(SELECTORS)})")
+
+
+def test_oracle_picks_caption_aligned_frames():
+    """The ceiling arm must actually find the caption-relevant frames, or it is not a ceiling.
+    Plant 3 frames that match the caption embedding among 17 random ones and check it finds them."""
+    from vidcap.config import CACHE
+    from scripts.evaluate import make_oracle
+    rng = np.random.default_rng(0)
+    cap = rng.standard_normal(VISION_DIM).astype(np.float32)
+    emb = rng.standard_normal((20, VISION_DIM)).astype(np.float32)
+    planted = [3, 11, 17]
+    for i in planted:
+        emb[i] = cap * 5.0                       # same direction, different magnitude
+    p = CACHE / "msrvtt" / "_captions.npz"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    np.savez_compressed(p, emb=cap[None, :], video_id=np.array(["vidO"]),
+                        text=np.array(["a man is talking"]))
+
+    oracle = make_oracle("msrvtt")
+    got = oracle(emb, 3, {"video_id": "vidO"})
+    assert got == planted, f"oracle picked {got}, planted {planted}"
+    # unknown clip must fall back rather than crash
+    assert len(oracle(emb, 3, {"video_id": "nope"})) == 3
+    print(f"oracle ok (found planted frames {got})")
 
 
 def test_dataset_and_collate():
@@ -134,6 +159,7 @@ if __name__ == "__main__":
     test_cider()
     test_uniform_indices()
     test_selector_protocol()
+    test_oracle_picks_caption_aligned_frames()
     test_dataset_and_collate()
     test_beam1_equals_greedy()
     print(f"\npipeline gates passed ({TMP})")
