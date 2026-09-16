@@ -311,3 +311,35 @@ frame-selection experiment. Unresolved: whether the data is genuinely frame-redu
 whether mean-pool is too coarse to notice which frames it received. The oracle arm
 (`evaluate --oracle`) separates those two and must be run before any scorer work.
 
+
+## Oracle ceiling: headroom EXISTS at low budgets (2026-09-15)
+
+`evaluate --ckpt stageB --oracle --limit 500 --budgets 1,2,4`, CIDEr-D:
+
+| K | uniform | motion | oracle | oracle - uniform |
+|---|---|---|---|---|
+| 1 | 0.4495 | 0.4572 | **0.5220** | **+0.0725** |
+| 2 | 0.4893 | 0.4804 | 0.5273 | +0.0380 |
+| 4 | 0.5397 | 0.5125 | 0.5443 | +0.0046 (noise) |
+
+**Oracle K=1 (0.5220) ~= uniform K=4 (0.5397); oracle K=1 BLEU-4 0.4037 ~= uniform K=16 0.4064.**
+One well-chosen frame matches 4-16 evenly-spaced ones — PLAN.md's success condition ("matches
+uniform quality at a lower budget"), and a 4-16x cut in encoder calls.
+
+Consequences:
+- The headline experiment must run at **K=1,2,3** — not the planned 2/4/8/16. At K>=4 MSR-VTT is
+  saturated and every selector ties; a sweep centred on 8 would have measured nothing and been
+  read as "frame selection does not help".
+- Mean-pool is NOT too coarse to see frame choice. If it were, the oracle could not beat uniform
+  at K=1. The K>=4 plateau is redundancy in 15s single-shot clips, not blindness in the model.
+  The spatial-grid re-cache is therefore not needed.
+- The scorer now has a concrete target: recover part of +0.0725 CIDEr at K=1 without the caption.
+
+Caveats to carry into the README, not to discover later:
+1. The oracle reads the test caption. It is an upper bound, not an achievable method, and a
+   learned scorer will capture only part of the gap.
+2. **Circularity**: the oracle ranks frames by SigLIP-to-caption similarity, and the captioner
+   consumes SigLIP embeddings — so the oracle is aligned with what this captioner wants by
+   construction. That inflates it relative to a human notion of importance. This is exactly what
+   the TVSum/SumMe validation exists to answer, and it must be framed that way.
+3. 500 clips, greedy. ~0.005 differences are noise; +0.0725 is not.
