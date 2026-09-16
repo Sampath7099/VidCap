@@ -375,3 +375,43 @@ Still open before this is defensible:
    importance labels are the only answer. Needs those datasets cached.
 2. Scorer val Spearman not yet recorded here.
 3. 500 clips, greedy decode. ~0.005 is noise; +0.0471 is not.
+
+## NEXT ACTIONS — read this first on resuming (2026-09-17)
+
+**State: both halves of the project have a measured result. What remains is strengthening and
+packaging, not "will this work".**
+
+Artifacts and where they live (nothing valuable is only in a Kaggle session):
+- Embedding cache, 10k clips, 8.5 GPU-h — Kaggle Dataset
+- `stageB.pt` + `blind.pt`, 4.6 GPU-h — Kaggle Dataset
+- `scorer.pt` + `eval_msrvtt_test.json` — **regenerate and save as `results.zip`**; the originals
+  were lost to an accelerator change mid-session. Retraining the scorer costs ~5 min, the eval
+  ~25 min. Numbers will shift slightly from those recorded above; use the regenerated ones so
+  every claim traces to the checkpoint actually shipped.
+
+Kaggle session recipe (a fresh session needs all four): clone the repo; re-download MSRVTT.zip
+from the Oxford mirror (~2 min — the loader enumerates clips by scanning video files, even though
+training reads only cached shards); symlink the cache Dataset to `/kaggle/working/cache`; copy the
+checkpoints Dataset to `/kaggle/working/checkpoints`. `VIDCAP_DATA=/kaggle/working/data` must be
+set in the kernel or subprocesses fall back to `/kaggle/input`.
+
+Remaining work, in priority order:
+
+1. **Diversity-aware selection** (~1 h, 20 min GPU). Top-K by relevance picks near-duplicates of
+   one moment, which is why uniform wins at K>=3. Add a redundancy penalty against already-picked
+   frames (MMR-style). Upgrades the claim from "helps at tight budgets" to "helps at every
+   budget", and the before/after is itself a finding about relevance-vs-diversity.
+2. **The demo — a hard gate, currently untouched.** Requirement #1 of this document is "real
+   video in, real caption out". Every path today runs on cached embeddings; nothing accepts an
+   .mp4. Needs ~100 lines wiring video -> frames -> SigLIP -> scorer -> captioner, then a run on
+   the self-shot holdout (never trained on, never scored). Without this it is an experiment, not
+   a project.
+3. **TVSum/SumMe validation** (~3 h, mostly caching). The circularity objection — scorer trained
+   on SigLIP-caption similarity, captioner consumes SigLIP — is the first thing an interviewer
+   will find. Human importance labels are the only rebuttal.
+4. **Stage C LoRA** (~1 h GPU). Quality bump, low risk, low insight.
+5. **README/packaging.** Four-arm curves, from-scratch ledger, explicit limitations: the oracle
+   is unreachable, the K>=3 reversal, the circularity, and 500-clip greedy-decode noise (~0.005).
+
+Not yet recorded anywhere: the scorer's validation Spearman. Capture it from `train_scorer`'s
+per-epoch output when regenerating.

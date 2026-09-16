@@ -85,16 +85,28 @@ uniform-sampling arm is required as the baseline regardless, so none of it is th
 cache stores the **full candidate pool**, not a uniform-K subset, so the scorer later drops in with
 no re-embedding.
 
-| Step | Was | Content |
-|---|---|---|
-| 0 | Phase 0 | Foundation, caching, checkpointing — *code done, data pending* |
-| 1 | Phases 2,3,4,7 | Vanilla captioner: connector, LoRA, fusion, greedy decode + correctness gates |
-| 2 | Phases 5,6 | Train Stage B (connector) then Stage C (LoRA), uniform sampling throughout |
-| 3 | **new** | **Blind baseline control** — same model, visual prefix zeroed |
-| 4 | Phase 1 | Frame-relevance scorer + TVSum/SumMe validation |
-| 5 | **new** | Cheap proxy check: does selection retain more caption-relevant CLIP signal? |
-| 6 | Phase 8 | Headline quality-vs-budget curves, uniform vs motion vs learned |
-| 7 | Phases 9,10,11 | Ablations, end-to-end usability, packaging |
+| Step | Was | Content | Status |
+|---|---|---|---|
+| 0 | Phase 0 | Foundation, caching, checkpointing | **DONE** — 10k clips cached, saved as a Kaggle Dataset |
+| 1 | Phases 2,3,4,7 | Vanilla captioner: connector, LoRA, fusion, greedy decode + gates | **DONE** |
+| 2 | Phases 5,6 | Train Stage B (connector) then Stage C (LoRA) | **Stage B done** (CIDEr 0.5397). Stage C not run |
+| 3 | **new** | **Blind baseline control** | **PASSED** — +0.4360 CIDEr over blind |
+| 3.5 | **new** | **Oracle ceiling arm** — top-K by caption similarity | **DONE** — +0.0725 headroom at K=1 |
+| 4 | Phase 1 | Frame-relevance scorer | **DONE** — recovers 65% of ceiling at K=1 |
+| 4b | Phase 1 | TVSum/SumMe validation against human importance | **NOT DONE** — answers the circularity objection |
+| 5 | **new** | Cheap proxy check | superseded by the oracle arm (step 3.5) |
+| 6 | Phase 8 | Headline quality-vs-budget curves | **DONE** at K=1,2,3,4 |
+| 6b | **new** | **Diversity-aware selection** (redundancy penalty) | **NOT DONE** — would fix the K>=3 reversal |
+| 7 | Phases 9,10,11 | Ablations, end-to-end usability, packaging | **NOT DONE** — the demo is a hard gate |
+
+**Two corrections this plan got wrong, learned by measurement:**
+
+1. **Budgets are 1/2/3/4, not 2/4/8/16.** MSR-VTT saturates at K=4 — uniform scores 0.5397 /
+   0.5376 / 0.5387 at K=4/8/16. A sweep centred on 8 measures nothing and would have been
+   written up as "frame selection does not help", which is false.
+2. **ActivityNet is no longer load-bearing.** It was required on the assumption MSR-VTT would
+   show no effect. It does show one, at K=1-2. ActivityNet would strengthen the result on longer
+   video but no longer gates it — treat as optional, given no clean public mirror exists.
 
 **Step 3 is not optional.** MSR-VTT captions are heavily prior-biased ("a man is talking"), so a
 prefix-tuned GPT-2 can score respectably while ignoring the visual prefix entirely. If the real
