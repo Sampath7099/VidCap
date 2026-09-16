@@ -12,31 +12,60 @@ import numpy as np
 import torch
 
 from vidcap import checkpoint
-from vidcap.config import OUT
+from vidcap.config import CACHE, OUT
 from vidcap.data import eval_batches, load_split, uniform_indices
 from vidcap.decode import beam_search, greedy
 from vidcap.metrics import evaluate
 from vidcap.model import VideoCaptioner
 
 
-def motion_indices(emb, k):
+def _unit(x):
+    return x / np.maximum(np.linalg.norm(x, axis=1, keepdims=True), 1e-8)
+
+
+def motion_indices(emb, k, rec=None):
     """Classical baseline: pick frames with the largest change from the previous frame.
     Operates on embedding deltas (cached) rather than raw pixels — same idea, no video decode."""
     if len(emb) <= k:
         return uniform_indices(len(emb), k)
-    e = emb / np.maximum(np.linalg.norm(emb, axis=1, keepdims=True), 1e-8)
+    e = _unit(emb)
     d = np.concatenate([[0.0], 1.0 - (e[1:] * e[:-1]).sum(1)])  # cosine distance to previous
     return sorted(np.argsort(-d)[:k].tolist())
 
 
-def uniform_sel(emb, k):
+def make_oracle(dataset):
+    """CEILING CONTROL — picks the K frames most similar to the clip's ground-truth captions.
+
+    It reads the test caption, so it is not a usable method; it is the upper bound a learned
+    scorer is trying to approximate without that caption. Oracle ~= uniform means the data has
+    no selection headroom at this budget and no scorer can win, which is worth knowing before
+    building one. Oracle >> uniform means the headroom is real and the open question is only
+    whether it can be found from pixels alone.
+    """
+    z = np.load(CACHE / dataset / "_captions.npz")
+    by_vid = {}
+    for v, e in zip(z["video_id"], z["emb"]):
+        by_vid.setdefault(str(v), []).append(e)
+    by_vid = {v: _unit(np.stack(e)) for v, e in by_vid.items()}
+
+    def oracle(emb, k, rec=None):
+        caps = by_vid.get(str(rec["video_id"])) if rec else None
+        if caps is None or len(emb) <= k:
+            return uniform_indices(len(emb), k)
+        score = (_unit(emb) @ caps.T).mean(1)      # mean similarity over this clip's captions
+        return sorted(np.argsort(-score)[:k].tolist())
+
+    return oracle
+
+
+def uniform_sel(emb, k, rec=None):
     """Adapter: uniform_indices takes a pool size, the selector protocol takes the pool."""
     return uniform_indices(len(emb), k)
 
 
-# Every entry MUST take (emb, k) — eval_batches calls them as sel(emb, k). Registering
-# uniform_indices directly here passed an array where it expected an int.
-SELECTORS = {"uniform": uniform_sel, "motion": motion_indices}
+# Every entry MUST take (emb, k, rec) — eval_batches calls them that way. rec carries the
+# video_id the oracle needs; the other arms ignore it.
+SELECTORS = {"uniform": uniform_sel, "motion": motion_indices}   # + "oracle", built per-dataset
 
 
 def load_model(name, device):
@@ -81,6 +110,8 @@ def main():
     ap.add_argument("--root", default=None)
     ap.add_argument("--budgets", default="2,4,8,16")
     ap.add_argument("--beam", type=int, default=1)
+    ap.add_argument("--oracle", action="store_true",
+                    help="add the cheating ceiling arm (uses ground-truth captions)")
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument("--out", default=None)
     args = ap.parse_args()
@@ -96,7 +127,10 @@ def main():
     results = {"dataset": args.dataset, "split": args.split, "n": len(recs),
                "beam": args.beam, "curves": {}}
 
-    for sel_name, sel in SELECTORS.items():
+    selectors = dict(SELECTORS)
+    if args.oracle:
+        selectors["oracle"] = make_oracle(args.dataset)
+    for sel_name, sel in selectors.items():
         results["curves"][sel_name] = {}
         for k in budgets:
             scores, hyps, _ = run(model, args.dataset, recs, sel, k, device, args.beam)

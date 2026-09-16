@@ -94,7 +94,9 @@ def make_collate(tokenizer, max_len=32):
 
 def eval_batches(dataset, records, k=8, select=None, batch=16):
     """Yields (frames[B,K,D], [[refs]]) — every reference caption, for metric computation."""
-    sel = select or (lambda emb, k: uniform_indices(len(emb), k))
+    # Selectors take (emb, k, rec). The record is needed by the oracle arm, which scores frames
+    # against the clip's ground-truth captions — it cheats deliberately, to measure the ceiling.
+    sel = select or (lambda emb, k, rec: uniform_indices(len(emb), k))
     for i in range(0, len(records), batch):
         chunk = records[i:i + batch]
         frames, refs = [], []
@@ -102,7 +104,7 @@ def eval_batches(dataset, records, k=8, select=None, batch=16):
             emb = np.load(cache_path(dataset, r["video_id"]))["emb"]
             if len(emb) == 0:
                 continue
-            frames.append(torch.from_numpy(np.ascontiguousarray(emb[sel(emb, k)])).float())
+            frames.append(torch.from_numpy(np.ascontiguousarray(emb[sel(emb, k, r)])).float())
             refs.append(r["captions"])
         if frames:
             yield torch.stack(frames), refs
