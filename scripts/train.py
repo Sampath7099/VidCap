@@ -11,7 +11,8 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from vidcap import checkpoint
-from vidcap.data import VideoCaptionDataset, load_split, make_collate
+from vidcap.data import (VideoCaptionDataset, VideoQADataset, load_split,
+                         make_collate, make_qa_collate)
 from vidcap.model import VideoCaptioner
 
 
@@ -26,29 +27,46 @@ def arch_of(args):
             "lora_r": args.lora_r if args.stage == "C" else 0, "blind": args.blind}
 
 
+def task_of(args):
+    """Recorded alongside arch so a QA checkpoint can never be silently evaluated as a captioner.
+    Same class of bug as the lora_r mismatch that cost a debugging cycle in part one."""
+    return getattr(args, "task", "caption")
+
+
 def build(args, device):
     m = VideoCaptioner(**arch_of(args)).to(device)
-    if args.stage == "C" and args.init:
+    # --init applies to any stage, not just C: QA starts from the captioning connector, which
+    # already maps frames into the LLM's space. Relearning that would waste hours of quota.
+    if args.init:
         ck = checkpoint.load(args.init, map_location=device)
         if ck is None:
-            raise SystemExit(f"--init {args.init}: no such checkpoint (run stage B first)")
-        # Stage C legitimately adds LoRA adapters the stage-B checkpoint lacks, so this is the
+            raise SystemExit(f"--init {args.init}: no such checkpoint (train it first)")
+        # Stage C legitimately adds LoRA adapters the source checkpoint lacks, so this is the
         # one place a partial load is correct — restore() would reject the extra keys.
         info = m.load_state_dict(ck["model"], strict=False)
         new = [k for k in info.missing_keys if k.endswith((".A", ".B"))]
         if info.unexpected_keys:
-            raise SystemExit(f"--init {args.init}: not a stage-B checkpoint for this "
-                             f"architecture ({len(info.unexpected_keys)} unexpected keys)")
-        print(f"init from {args.init} @ step {ck['step']} ({len(new)} new keys = LoRA adapters)")
+            raise SystemExit(f"--init {args.init}: architecture mismatch "
+                             f"({len(info.unexpected_keys)} unexpected keys)")
+        extra = f", {len(new)} new LoRA keys" if new else ""
+        print(f"init from {args.init} @ step {ck['step']} (task={ck.get('task', 'caption')}{extra})")
     return m
+
+
+def unpack(batch, device):
+    """Captioning yields (frames, ids, attn); QA adds a loss_mask. One call site for both."""
+    frames, ids, attn = batch[0], batch[1], batch[2]
+    lm = batch[3].to(device) if len(batch) > 3 else None
+    return frames.to(device), ids.to(device), attn.to(device), lm
 
 
 def evaluate_loss(model, loader, device):
     model.eval()
     tot, n = 0.0, 0
     with torch.no_grad():
-        for frames, ids, mask in loader:
-            loss, _ = model(frames.to(device), ids.to(device), mask.to(device))
+        for batch in loader:
+            frames, ids, attn, lm = unpack(batch, device)
+            loss, _ = model(frames, ids, attn, lm)
             tot += loss.item() * ids.size(0)
             n += ids.size(0)
     model.train()
@@ -58,7 +76,9 @@ def evaluate_loss(model, loader, device):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--stage", choices=["B", "C"], required=True)
-    ap.add_argument("--dataset", default="msrvtt")
+    ap.add_argument("--task", choices=["caption", "qa"], default="caption")
+    ap.add_argument("--dataset", default=None,
+                    help="defaults to msrvtt for captioning, msrvtt_qa for qa")
     ap.add_argument("--root", default=None)
     # meanpool + expanding projector = the ClipCap/LLaVA-shaped path, which trains
     # reliably at this data scale. The resampler is a Phase 9 ablation, not the default.
@@ -79,20 +99,25 @@ def main():
     ap.add_argument("--save-every", type=int, default=200)
     args = ap.parse_args()
 
-    name = args.name or f"stage{args.stage}"
+    qa = args.task == "qa"
+    args.dataset = args.dataset or ("msrvtt_qa" if qa else "msrvtt")
+    name = args.name or (f"qa{args.stage}" if qa else f"stage{args.stage}")
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     train_recs = load_split(args.dataset, "train", args.root, args.limit)
     val_recs = load_split(args.dataset, "val", args.root, args.limit and max(args.limit // 10, 1))
     if not train_recs:
-        raise SystemExit("no cached training shards — run scripts/build_cache.py first")
-    print(f"{len(train_recs)} train / {len(val_recs)} val clips (cached shards only)")
+        raise SystemExit(f"no cached shards for {args.dataset} — run scripts/build_cache.py "
+                         "(and scripts/fetch_qa.py for the qa task)")
+    unit = "qa pairs" if qa else "clips"
+    print(f"{len(train_recs)} train / {len(val_recs)} val {unit} (cached shards only)")
 
     model = build(args, device)
-    collate = make_collate(model.tok)
-    dl = DataLoader(VideoCaptionDataset(args.dataset, train_recs, args.k), batch_size=args.bs,
+    Data = VideoQADataset if qa else VideoCaptionDataset
+    collate = make_qa_collate(model.tok) if qa else make_collate(model.tok)
+    dl = DataLoader(Data(args.dataset, train_recs, args.k), batch_size=args.bs,
                     shuffle=True, collate_fn=collate, num_workers=2, drop_last=True)
-    vdl = DataLoader(VideoCaptionDataset(args.dataset, val_recs, args.k, train=False),
+    vdl = DataLoader(Data(args.dataset, val_recs, args.k, train=False),
                      batch_size=args.bs, collate_fn=collate) if val_recs else None
 
     params = model.trainable_parameters()
@@ -118,8 +143,9 @@ def main():
     if start_ep >= args.epochs:
         print(f"{name} already completed {args.epochs} epochs at step {step}; nothing to do")
     for ep in range(start_ep, args.epochs):
-        for frames, ids, mask in dl:
-            loss, _ = model(frames.to(device), ids.to(device), mask.to(device))
+        for batch in dl:
+            frames, ids, attn, lm = unpack(batch, device)
+            loss, _ = model(frames, ids, attn, lm)
             opt.zero_grad()
             loss.backward()
             torch.nn.utils.clip_grad_norm_(params, 1.0)
@@ -129,13 +155,16 @@ def main():
             if step % 25 == 0:
                 bar.set_postfix(ep=ep, loss=f"{loss.item():.4f}")
             if step % args.save_every == 0:
-                checkpoint.save(name, step, model, opt, args=vars(args), arch=arch_of(args))
+                checkpoint.save(name, step, model, opt, args=vars(args), arch=arch_of(args),
+                                task=task_of(args))
         vl = evaluate_loss(model, vdl, device) if vdl else float("nan")
         print(f"== epoch {ep} done | val loss {vl:.4f}", flush=True)
-        checkpoint.save(name, step, model, opt, args=vars(args), arch=arch_of(args), val_loss=vl)
+        checkpoint.save(name, step, model, opt, args=vars(args), arch=arch_of(args),
+                        task=task_of(args), val_loss=vl)
 
     bar.close()
-    checkpoint.save(name, step, model, opt, args=vars(args), arch=arch_of(args))
+    checkpoint.save(name, step, model, opt, args=vars(args), arch=arch_of(args),
+                                task=task_of(args))
     print(f"saved {name} @ step {step}")
 
 

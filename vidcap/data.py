@@ -9,9 +9,22 @@ from .datasets import LOADERS
 from .encoder import cache_path
 
 
+# Datasets that reuse another dataset's shards. MSRVTT-QA asks questions about the SAME 10k clips,
+# so it must read msrvtt's cache — caching it separately would re-embed 10k videos for nothing.
+# Deliberately NOT in config.DATASETS, so `build_cache msrvtt_qa` is rejected rather than silently
+# writing a second, redundant cache.
+CACHE_OF = {"msrvtt_qa": "msrvtt"}
+
+
+def cache_ns(dataset):
+    """Which dataset's shards to read for `dataset`."""
+    return CACHE_OF.get(dataset, dataset)
+
+
 def available(dataset, records):
     """Only records whose cache shard actually exists — caching may be partial or still running."""
-    return [r for r in records if cache_path(dataset, r["video_id"]).exists()]
+    ns = cache_ns(dataset)
+    return [r for r in records if cache_path(ns, r["video_id"]).exists()]
 
 
 def load_split(dataset, split=None, root=None, limit=None):
@@ -51,7 +64,7 @@ class VideoCaptionDataset(Dataset):
     """Yields (frames[K,D] float32, caption str). One random caption per epoch per clip."""
 
     def __init__(self, dataset, records, k=8, select=None, train=True, seed=0):
-        self.dataset, self.records, self.k, self.train = dataset, records, k, train
+        self.dataset, self.records, self.k, self.train = cache_ns(dataset), records, k, train
         # Train: random frames (selection-agnostic, see random_indices). Val/eval: uniform,
         # so the held-out number is a fixed, reproducible reference point.
         default = random_indices if train else uniform_indices
@@ -81,6 +94,47 @@ class VideoCaptionDataset(Dataset):
         return frames, cap
 
 
+class VideoQADataset(VideoCaptionDataset):
+    """One (video, question, answer) triple per item. Same cache and selector protocol as
+    captioning — MSRVTT-QA rides on msrvtt's shards."""
+
+    def __getitem__(self, i):
+        r = self.records[i]
+        emb = self.pool(i)
+        if len(emb) == 0:
+            emb = np.zeros((1, emb.shape[1] if emb.ndim == 2 else 1), np.float32)
+        frames = torch.from_numpy(np.ascontiguousarray(emb[self.select(emb, self.k)])).float()
+        return frames, r["question"], r["answer"]
+
+
+def make_qa_collate(tokenizer, max_q=24, max_a=8):
+    """[question][answer][eos], plus a loss_mask that is 1 only on answer+eos.
+
+    Training on the question tokens as well would spend most of the gradient teaching the model to
+    reproduce questions — the answer is one word out of ~10 tokens, so it would be drowned out.
+    """
+    def collate(batch):
+        frames = torch.stack([b[0] for b in batch])
+        qs = tokenizer([b[1].strip() + "?" if not b[1].strip().endswith("?") else b[1].strip()
+                        for b in batch], truncation=True, max_length=max_q)["input_ids"]
+        ans = tokenizer([" " + b[2].strip() + tokenizer.eos_token for b in batch],
+                        truncation=True, max_length=max_a)["input_ids"]
+
+        n = max(len(q) + len(a) for q, a in zip(qs, ans))
+        pad = tokenizer.pad_token_id
+        ids = torch.full((len(batch), n), pad, dtype=torch.long)
+        attn = torch.zeros((len(batch), n), dtype=torch.long)
+        loss = torch.zeros((len(batch), n), dtype=torch.long)
+        for i, (q, a) in enumerate(zip(qs, ans)):
+            seq = q + a
+            ids[i, :len(seq)] = torch.tensor(seq)
+            attn[i, :len(seq)] = 1
+            loss[i, len(q):len(seq)] = 1          # answer + eos only
+        return frames, ids, attn, loss
+
+    return collate
+
+
 def make_collate(tokenizer, max_len=32):
     """Right-pads captions; eos appended so the model learns to stop."""
     def collate(batch):
@@ -97,11 +151,12 @@ def eval_batches(dataset, records, k=8, select=None, batch=16):
     # Selectors take (emb, k, rec). The record is needed by the oracle arm, which scores frames
     # against the clip's ground-truth captions — it cheats deliberately, to measure the ceiling.
     sel = select or (lambda emb, k, rec: uniform_indices(len(emb), k))
+    ns = cache_ns(dataset)
     for i in range(0, len(records), batch):
         chunk = records[i:i + batch]
         frames, refs = [], []
         for r in chunk:
-            emb = np.load(cache_path(dataset, r["video_id"]))["emb"]
+            emb = np.load(cache_path(ns, r["video_id"]))["emb"]
             if len(emb) == 0:
                 continue
             frames.append(torch.from_numpy(np.ascontiguousarray(emb[sel(emb, k, r)])).float())
