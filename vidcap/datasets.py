@@ -65,6 +65,38 @@ def msrvtt(root=None):
             for k in sorted(caps) if k in vids]
 
 
+# --- MSRVTT-QA: video question answering over the SAME clips as msrvtt -----------
+
+QA_SPLITS = {"train": "qa_train.json", "val": "qa_val.json", "test": "qa_test.json"}
+
+
+def msrvtt_qa(root=None):
+    """One record per question: {video_id, path, split, question, answer, answer_type}.
+
+    Splits come from the annotation filenames and coincide exactly with MSR-VTT's official video
+    ranges (val is video6513-7009), so nothing needs re-caching — the shards built for captioning
+    serve QA unchanged. Answers are single words; the metric is exact-match accuracy.
+    """
+    root = Path(root or DATA / "msrvtt")
+    vids = _find_videos(root)
+    recs = []
+    for split, fname in QA_SPLITS.items():
+        hits = sorted(root.rglob(fname))
+        if not hits:
+            continue
+        for q in json.loads(hits[0].read_text()):
+            vid = str(q.get("video", "")).rsplit(".", 1)[0]
+            if vid in vids:
+                recs.append({"video_id": vid, "path": vids[vid], "split": split,
+                             "question": q["question"], "answer": str(q["answer"]),
+                             "answer_type": q.get("answer_type", "")})
+    if not recs:
+        raise FileNotFoundError(
+            f"no MSRVTT-QA annotations under {root} (looked for {list(QA_SPLITS.values())}). "
+            "Run: python -m scripts.fetch_qa")
+    return recs
+
+
 # --- TVSum / SumMe: human-annotated frame importance (scorer ground truth) -------
 
 def tvsum(root=None):
@@ -126,7 +158,7 @@ def holdout(root=None):
             for k, v in sorted(_find_videos(root).items())]
 
 
-LOADERS = {"msrvtt": msrvtt, "tvsum": lambda r=None: tvsum(r)[0],
+LOADERS = {"msrvtt": msrvtt, "msrvtt_qa": msrvtt_qa, "tvsum": lambda r=None: tvsum(r)[0],
            "summe": lambda r=None: summe(r)[0], "activitynet": activitynet, "holdout": holdout}
 
 

@@ -134,3 +134,32 @@ def cider_d(hyps, refs, max_n=4, sigma=6.0):
 
 def evaluate(hyps, refs):
     return {"BLEU-4": bleu(hyps, refs), "ROUGE-L": rouge_l(hyps, refs), "CIDEr-D": cider_d(hyps, refs)}
+
+
+def _norm_answer(s):
+    """Lowercase, strip punctuation, collapse whitespace. MSRVTT-QA answers are single words,
+    so 'Man.' and 'man' must count as the same answer."""
+    return _PUNCT.sub("", str(s).lower()).strip()
+
+
+def qa_accuracy(preds, golds):
+    """Exact-match accuracy — the standard MSRVTT-QA metric.
+
+    Deliberately NOT BLEU/CIDEr: answers are one word, where n-gram overlap metrics are
+    meaningless and not comparable to any published QA number.
+    """
+    if not preds:
+        return 0.0
+    hit = sum(_norm_answer(p) == _norm_answer(g) for p, g in zip(preds, golds))
+    return hit / len(preds)
+
+
+def qa_accuracy_by_type(preds, golds, types):
+    """{answer_type: (accuracy, n)} — 'what' and 'who' are 96% of MSRVTT-QA, so a headline number
+    alone hides whether the model does anything on how/when/where."""
+    buckets = defaultdict(lambda: [0, 0])
+    for p, g, t in zip(preds, golds, types):
+        b = buckets[t or "?"]
+        b[0] += _norm_answer(p) == _norm_answer(g)
+        b[1] += 1
+    return {t: (h / n, n) for t, (h, n) in sorted(buckets.items(), key=lambda kv: -kv[1][1])}

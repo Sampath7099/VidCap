@@ -120,8 +120,13 @@ class VideoCaptioner(nn.Module):
             f = torch.zeros_like(f)
         return self.projector(self.connector(f)).to(self.llm.dtype)
 
-    def forward(self, frames, input_ids, attention_mask=None):
-        """Returns (loss, logits). input_ids are the caption; prefix positions are not predicted."""
+    def forward(self, frames, input_ids, attention_mask=None, loss_mask=None):
+        """Returns (loss, logits). input_ids are the text; prefix positions are not predicted.
+
+        loss_mask (B,T) selects which text tokens contribute to the loss. None means all of them,
+        which is captioning. QA passes a mask covering only the answer, so the question is
+        conditioning rather than a target.
+        """
         pre = self.prefix(frames)
         emb = self.llm.get_input_embeddings()(input_ids)
         x = torch.cat([pre, emb], dim=1)
@@ -130,8 +135,9 @@ class VideoCaptioner(nn.Module):
             attention_mask = torch.ones_like(input_ids)
         mask = torch.cat([torch.ones(pre.shape[:2], device=x.device, dtype=attention_mask.dtype),
                           attention_mask], dim=1)
+        keep = attention_mask if loss_mask is None else (attention_mask * loss_mask)
         labels = torch.cat([torch.full(pre.shape[:2], IGNORE, device=x.device, dtype=torch.long),
-                            input_ids.masked_fill(attention_mask == 0, IGNORE)], dim=1)
+                            input_ids.masked_fill(keep == 0, IGNORE)], dim=1)
         # ponytail: plain causal mask over the whole sequence (ClipCap-style). Bidirectional
         # attention within the video prefix is a later ablation, not needed to train.
         out = self.llm(inputs_embeds=x, attention_mask=mask, labels=labels)
