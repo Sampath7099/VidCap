@@ -200,6 +200,29 @@ def test_qa_accuracy():
     print(f"qa accuracy ok ({by})")
 
 
+def test_summarize_composes_and_dedupes():
+    """The summary must ADD information. An answer the caption already states is noise, and a
+    blank answer must not become an empty sentence."""
+    from scripts.summarize import render, summarize
+    from vidcap.data import uniform_indices
+    torch.manual_seed(0)
+    m = VideoCaptioner(llm_name=TINY, d_vis=64, n_prefix=4, connector="meanpool", lora_r=0).eval()
+    emb = np.random.randn(30, 64).astype(np.float32)
+    cap, facts, idx = summarize(emb, 4, lambda e, k, r: uniform_indices(len(e), k), m, m, "cpu")
+    assert isinstance(cap, str) and len(idx) == 4, (cap, idx)
+    labels = [l for l, _ in facts]
+    assert len(labels) == len(set(labels)), f"duplicate probes: {labels}"
+    for _, a in facts:
+        assert a.strip(), "empty answer leaked into the summary"
+    # render() is tested on known input — asserting on an untrained model's caption would be
+    # testing the model, not the renderer.
+    assert render("a man is talking", [("who", "man")]) == "A man is talking. Who: man."
+    assert render("a man is talking", []) == "A man is talking."
+    assert render(".", []) == "(no caption).", render(".", [])
+    assert render("", []) == "(no caption)."
+    print(f"summarize ok ({len(facts)} facts kept, {len(idx)} frames, render verified)")
+
+
 def test_overfits_a_few_qa_triples():
     """End-to-end gate: the model must be able to memorise answers conditioned on the question."""
     torch.manual_seed(0)
@@ -231,5 +254,6 @@ if __name__ == "__main__":
     test_padding_would_corrupt_answers_so_batches_must_be_uniform()
     test_evaluate_qa_groups_by_length()
     test_qa_accuracy()
+    test_summarize_composes_and_dedupes()
     test_overfits_a_few_qa_triples()
     print(f"\nqa gates passed ({TMP})")
