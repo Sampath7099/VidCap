@@ -28,5 +28,27 @@ $VIDCAP_DATA/
 - **Holdout hygiene**: `holdout/` is a separate root and never appears in any training loader.
   `datasets.verify_no_leakage` asserts train/eval/holdout ids are disjoint and runs on every
   `build_cache` invocation.
-- TVSum scores are **per 2-second shot**; SumMe scores are **per frame**. Phase 1 must align the
-  1 fps candidate pool to each convention separately — do not assume they match.
+- **TVSum and SumMe scores are BOTH per-frame** — verified 2026-09-25 against the real files, not
+  assumed. `len(scores) == CAP_PROP_FRAME_COUNT` exactly (ratio 1.000) on every video checked, for
+  both datasets. An earlier note here claimed TVSum was per 2-second shot; that is wrong for the
+  `ydata-tvsum50-anno.tsv` release. Alignment to the candidate pool is therefore the same index
+  mapping for both — `scores[frame_index]` at the pool's sampled indices.
+- TVSum scores are the mean over 20 annotators and land in ~[1, 5]; SumMe's `gt_score` is already
+  normalised to ~[0, 1]. Correlate per-video (Spearman), never pool raw values across datasets.
+
+## Acquisition that actually worked (2026-09-25)
+
+One Kaggle dataset carries everything for both: **`veerchheda/iitp-summe-tvsum`** (3.7 GB).
+
+```bash
+kaggle datasets download -d veerchheda/iitp-summe-tvsum -p data/_dl
+cd data/_dl
+unzip -q -j iitp-summe-tvsum.zip "video/*.mp4" -d ../tvsum/
+unzip -q -j iitp-summe-tvsum.zip "data/ydata-tvsum50-anno.tsv" "data/ydata-tvsum50-info.tsv" -d ../tvsum/
+unzip -q -j iitp-summe-tvsum.zip "videos/*.mp4" -d ../summe/
+unzip -q    iitp-summe-tvsum.zip "GT/*"        -d ../summe/
+```
+
+Yields `tvsum/` 50 videos + anno TSV (664 MB) and `summe/` 25 videos + 25 `GT/*.mat` (1.5 GB).
+Both loaders parse these unmodified — no fixes were needed, contrary to the expectation recorded
+in context.md. Skip the `.webm` copies in `videos/`; they duplicate the `.mp4`s.
