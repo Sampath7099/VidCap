@@ -573,3 +573,39 @@ python -m scripts.validate_scorer --datasets tvsum,summe
 **Do not run `./run_tests.sh` while a cache build is going.** `test_model.py` loads Qwen at ~6.2GB
 under a 7G cap; with SigLIP holding ~3.2GB concurrently it gets OOM-killed and reads as a test
 failure. It passes alone. Observed this session — the failure is contention, not a regression.
+
+### FIRST HUMAN-VALIDATION NUMBERS — n=3, inconclusive, but NOT pointing the right way
+
+3 TVSum videos cached locally (48 min CPU) purely to prove the path. `validate_scorer --datasets
+tvsum`, mean within-video Spearman against human importance:
+
+| arm | mean rho | sd |
+|---|---|---|
+| learned | **-0.1242** | 0.3006 |
+| motion | +0.1683 | 0.2077 |
+| random | +0.0516 | 0.0570 |
+
+Per video: `-esJrBWj2d8` +0.168, `WG0MBPpPC6I` **-0.538**, `z_6gVvQb2d0` -0.003.
+
+**Do not draw a conclusion from this.** n=3, sd 0.30, SEM ~0.17 — the mean overlaps zero easily and
+one video carries the whole negative sign. It is reported here because it is the first real
+evidence on the circularity question and the direction is wrong; it must not be quietly dropped if
+the n=50 run comes back better.
+
+Three explanations, to be distinguished by the full run, not guessed at now:
+1. **Sampling noise.** Most likely at n=3.
+2. **Distribution shift.** The scorer was trained on 15s single-shot MSR-VTT clips pooled at 3fps.
+   TVSum is 2-4 minute multi-shot YouTube video pooled at 1fps. Nothing about the scorer was
+   trained for that.
+3. **Construct mismatch — the interesting one.** Summarisation "importance" and "caption-relevance"
+   are not the same target. A frame can be the key event of a summary and still not be the most
+   describable frame in a caption. If the full run confirms a null, this is the honest reading, and
+   it is still a legitimate finding: it bounds what the MSR-VTT result claims rather than refuting
+   it. What it kills is the stronger claim that the scorer tracks *human* notions of importance.
+
+**Consequence for the write-up.** README currently says TVSum/SumMe validation "has not been run
+yet". That stays accurate until the full run. If the null holds at n=50, the limitations section
+must say so plainly — the MSR-VTT result stands on its own (blind control, oracle ceiling, budget
+curves are all internally valid), but the human-alignment claim would not be available.
+
+Run before deciding anything: `build_cache tvsum && build_cache summe && validate_scorer` on GPU.
