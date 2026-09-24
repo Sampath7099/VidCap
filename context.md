@@ -478,3 +478,63 @@ and ends slightly worse.
 best epoch.** The headline numbers were therefore produced by a slightly-worse-than-best scorer —
 the result is understated, not inflated. Fix is to keep a separate best-by-val checkpoint; the
 same applies to stageB (best ep6 2.7408 vs shipped ep9 2.7424, negligible there).
+
+## Phase 2 (video Q&A) — CODE ONLY, NEVER TRAINED (2026-09-17)
+
+Commits 9acec09 and 528dbc0 added the full Q&A path — `fetch_qa.py`, the `msrvtt_qa` loader,
+`loss_mask` so question tokens condition rather than supervise, prompted greedy decode, exact-match
+accuracy with a by-type breakdown, `train.py --task qa`, `evaluate_qa.py`, and composed summaries
+in `summarize.py`. It reuses the existing 10k-clip cache, so it cost ~40MB of annotations instead
+of a second 8.5 GPU-hour embedding run.
+
+**There is no `qaB` checkpoint and no accuracy number anywhere.** All gates in `test_qa.py` pass,
+but gates prove plumbing, not quality. Until `train.py --task qa` runs on Kaggle, treat Phase 2 as
+unverified code. Do not describe it as a result.
+
+## Session 2026-09-25 — first real-clip run, README, packaging
+
+**End-to-end verified on CPU, off-Kaggle.** `scripts/caption.py` runs on this 15GB laptop with no
+GPU, both models in fp32, ~1-2 min/clip. Needs ~10GB against ~9GB free, so run it under
+`systemd-run --user --scope -p MemoryMax=11G -p MemorySwapMax=0` or the desktop locks up.
+Checkpoints were unzipped from `results.zip` to `out/checkpoints/`.
+
+**First real out-of-distribution clip** (handheld night video of a lightning strike, 5.7s):
+
+```
+myclip.mp4  (35 candidate frames, 5.7s)
+  learned  K=2  [0.2s, 2.8s]   'a person is looking at a city'
+  uniform  K=2  [0.0s, 5.7s]   'a man is looking at a city'
+```
+
+The selector picked 2.8s — the exact frame the lightning fires. Uniform picked two dark frames and
+missed the only event in the clip. **The selection claim reproduces on real video outside the
+training distribution**; this is now `figures/selection_myclip.png`.
+
+The caption is wrong on both arms (no person, no city). Expected: MSR-VTT is daylight clips of
+people doing things. Two things worth carrying forward:
+1. The two arms produced *different* captions from different frames — independent corroboration of
+   the blind control, on real video.
+2. The flash frame is almost entirely blown-out white. It is the most *distinctive* frame but
+   carries little describable content — "unusual" and "caption-relevant" are not the same thing,
+   and the scorer optimises the latter. Worth a line in the limitations section.
+
+**Still untested: in-distribution real clips.** Cooking, pets, traffic, a person walking. Only
+those tell you whether the captioner is good or merely prior-biased. `myclip.mp4` proves the
+selector, not the captioner.
+
+**Packaged**: `README.md` (headline table, blind control, architecture, from-scratch ledger,
+limitations), `scripts/plot_curves.py` (regenerates the figure from `eval_msrvtt_test.json`, so it
+cannot rot), `figures/budget_curves.png`.
+
+**BLOCKER — the repo still cannot be pushed.** `origin/main` is stale at `a5ec1a8`; 9 local commits
+are unpushed. `results.zip` (1.3GB) is committed in `9acec09` and GitHub hard-rejects blobs over
+100MB. The zip's contents already live in a Kaggle Dataset, so committing it bought nothing. Fix:
+
+```
+FILTER_BRANCH_SQUELCH_WARNING=1 git filter-branch -f --index-filter \
+  'git rm --cached --ignore-unmatch results.zip' --prune-empty d533231..HEAD
+git push origin main
+```
+
+`*.zip` is now in `.gitignore`, so the file stays on disk and stops being tracked. Attach the
+checkpoints to a GitHub Release instead if they need a public home.
