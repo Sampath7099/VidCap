@@ -538,3 +538,38 @@ git push origin main
 
 `*.zip` is now in `.gitignore`, so the file stays on disk and stops being tracked. Attach the
 checkpoints to a GitHub Release instead if they need a public home.
+
+### TVSum + SumMe acquired and verified (2026-09-25)
+
+Both datasets are now on disk: `data/tvsum` (50 videos + anno TSV, 664MB) and `data/summe`
+(25 videos + 25 `GT/*.mat`, 1.5GB), from `veerchheda/iitp-summe-tvsum` — one Kaggle dataset
+carries both. Commands in DATASETS.md.
+
+**The loaders worked unmodified.** The "expect small fixes on first run" warning above was wrong:
+`tvsum()` returned 50 records / 50 score arrays and `summe()` 25 / 25 on first invocation.
+
+**Correction to a load-bearing assumption**: DATASETS.md claimed TVSum was scored per 2-second
+shot and SumMe per frame. **Both are per-frame** — `len(scores) == CAP_PROP_FRAME_COUNT` at ratio
+exactly 1.000 on every video checked. Alignment is one index mapping for both, not two. Acting on
+the old note would have produced a shot-aligned array with no matching data and read as a null.
+
+`scripts/validate_scorer.py` now exists and is gated by `test_validate.py`. It correlates predicted
+relevance against human importance per video, against `motion` and `random` nulls. Untrained
+judgement to avoid: a bare Spearman number is unreadable without those nulls.
+
+### CPU embedding is measured: 3.17 s/frame — do NOT cache these locally
+
+i5-1135G7, 4 threads, SigLIP so400m-384 fp32. The full TVSum+SumMe cache is ~17,800 frames
+= **~15.7 h on this laptop vs ~30 min on a Kaggle T4**. Not worth it. A 3-video pilot ran locally
+only to prove the path end to end; run the real thing on Kaggle:
+
+```
+python -m scripts.build_cache tvsum && python -m scripts.build_cache summe
+python -m scripts.validate_scorer --datasets tvsum,summe
+```
+
+`build_cache` skips existing shards, so a partial local cache is not wasted.
+
+**Do not run `./run_tests.sh` while a cache build is going.** `test_model.py` loads Qwen at ~6.2GB
+under a 7G cap; with SigLIP holding ~3.2GB concurrently it gets OOM-killed and reads as a test
+failure. It passes alone. Observed this session — the failure is contention, not a regression.
