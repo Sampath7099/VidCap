@@ -1,0 +1,567 @@
+{
+  "tvsum": {
+    "n_videos": 50,
+    "n_missing_cache": 0,
+    "aggregate": {
+      "learned": {
+        "mean": -0.05456258461344987,
+        "std": 0.28671726648497403
+      },
+      "motion": {
+        "mean": 0.10598673725500703,
+        "std": 0.20767369001050937
+      },
+      "random": {
+        "mean": -0.012396535119332839,
+        "std": 0.09241724231037275
+      }
+    },
+    "per_video": [
+      {
+        "video_id": "-esJrBWj2d8",
+        "n_frames": 231,
+        "learned": 0.1696946918964386,
+        "motion": 0.02101481705904007,
+        "random": 0.12298525869846344
+      },
+      {
+        "video_id": "0tmA_C6XwfM",
+        "n_frames": 142,
+        "learned": -0.24107539653778076,
+        "motion": 0.006318225059658289,
+        "random": -0.07971441745758057
+      },
+      {
+        "video_id": "37rzWOQsNIw",
+        "n_frames": 192,
+        "learned": -0.1429261714220047,
+        "motion": -0.1338655948638916,
+        "random": 0.09319134056568146
+      },
+      {
+        "video_id": "3eYKfiOEJNs",
+        "n_frames": 195,
+        "learned": -0.3789622485637665,
+        "motion": -0.0044441563077270985,
+        "random": -0.11976563930511475
+      },
+      {
+        "video_id": "4wU_LUjG5Ic",
+        "n_frames": 167,
+        "learned": 0.04287724196910858,
+        "motion": 0.3719686269760132,
+        "random": 0.1775742769241333
+      },
+      {
+        "video_id": "91IHQYk1IQM",
+        "n_frames": 111,
+        "learned": 0.3851087987422943,
+        "motion": 0.10261495411396027,
+        "random": -0.055835381150245667
+      },
+      {
+        "video_id": "98MoyGZKHXc",
+        "n_frames": 188,
+        "learned": -0.25048625469207764,
+        "motion": -0.00860021635890007,
+        "random": 0.12923622131347656
+      },
+      {
+        "video_id": "AwmHb44_ouw",
+        "n_frames": 256,
+        "learned": -0.4400885999202728,
+        "motion": 0.410849928855896,
+        "random": 0.04817750304937363
+      },
+      {
+        "video_id": "Bhxk-O1Y7Ho",
+        "n_frames": 256,
+        "learned": -0.17992962896823883,
+        "motion": 0.34204554557800293,
+        "random": 0.030921695753932
+      },
+      {
+        "video_id": "E11zDS9XGzg",
+        "n_frames": 256,
+        "learned": 0.04727841541171074,
+        "motion": 0.20131824910640717,
+        "random": 0.051424816250801086
+      },
+      {
+        "video_id": "EE-bNr36nyA",
+        "n_frames": 99,
+        "learned": -0.27304884791374207,
+        "motion": 0.38269636034965515,
+        "random": 0.04530612379312515
+      },
+      {
+        "video_id": "EYqVtI9YWJA",
+        "n_frames": 198,
+        "learned": 0.11955872178077698,
+        "motion": 0.21829885244369507,
+        "random": -0.07180263847112656
+      },
+      {
+        "video_id": "GsAD1KT1xo8",
+        "n_frames": 146,
+        "learned": 0.1057310625910759,
+        "motion": -0.12841622531414032,
+        "random": 0.02901487611234188
+      },
+      {
+        "video_id": "HT5vyqe0Xaw",
+        "n_frames": 256,
+        "learned": 0.23301243782043457,
+        "motion": -0.11627089977264404,
+        "random": -0.06717927753925323
+      },
+      {
+        "video_id": "Hl-__g2gn_A",
+        "n_frames": 244,
+        "learned": -0.35560595989227295,
+        "motion": 0.05982346832752228,
+        "random": 0.03356339409947395
+      },
+      {
+        "video_id": "J0nA4VgnoCo",
+        "n_frames": 256,
+        "learned": -0.2144462615251541,
+        "motion": 0.15538597106933594,
+        "random": 0.0161063764244318
+      },
+      {
+        "video_id": "JKpqYvAdIsw",
+        "n_frames": 153,
+        "learned": 0.1018354743719101,
+        "motion": -0.19676196575164795,
+        "random": 0.25832295417785645
+      },
+      {
+        "video_id": "JgHubY5Vw3Y",
+        "n_frames": 144,
+        "learned": -0.3301181495189667,
+        "motion": 0.3627883493900299,
+        "random": -0.00016477775352541357
+      },
+      {
+        "video_id": "LRw_obCPUt0",
+        "n_frames": 256,
+        "learned": -0.1884033977985382,
+        "motion": 0.22915858030319214,
+        "random": -0.052446216344833374
+      },
+      {
+        "video_id": "NyBmCxDoHJU",
+        "n_frames": 190,
+        "learned": 0.09187103807926178,
+        "motion": -0.24524399638175964,
+        "random": -0.04196617379784584
+      },
+      {
+        "video_id": "PJrm840pAUI",
+        "n_frames": 256,
+        "learned": 0.12789541482925415,
+        "motion": -0.011208944953978062,
+        "random": -0.030890939757227898
+      },
+      {
+        "video_id": "RBCABdttQmI",
+        "n_frames": 256,
+        "learned": -0.09357691556215286,
+        "motion": 0.09198043495416641,
+        "random": 0.1200818344950676
+      },
+      {
+        "video_id": "Se3oxnaPsz0",
+        "n_frames": 139,
+        "learned": -0.538075864315033,
+        "motion": 0.35567718744277954,
+        "random": -0.1006389930844307
+      },
+      {
+        "video_id": "VuWGsYPqAX8",
+        "n_frames": 217,
+        "learned": -0.3036976754665375,
+        "motion": -0.09835492074489594,
+        "random": -0.04358150437474251
+      },
+      {
+        "video_id": "WG0MBPpPC6I",
+        "n_frames": 256,
+        "learned": -0.5391873717308044,
+        "motion": 0.02464594505727291,
+        "random": 0.023055192083120346
+      },
+      {
+        "video_id": "WxtbjNsCQ8A",
+        "n_frames": 256,
+        "learned": -0.31188490986824036,
+        "motion": -0.08270342648029327,
+        "random": -0.016833802685141563
+      },
+      {
+        "video_id": "XkqCExn6_Us",
+        "n_frames": 188,
+        "learned": -0.3396074175834656,
+        "motion": 0.12604139745235443,
+        "random": 0.12293144315481186
+      },
+      {
+        "video_id": "XzYM3PfTM4w",
+        "n_frames": 111,
+        "learned": -0.34006670117378235,
+        "motion": 0.42286768555641174,
+        "random": -0.14108459651470184
+      },
+      {
+        "video_id": "Yi4Ij2NM7U4",
+        "n_frames": 256,
+        "learned": 0.4766923487186432,
+        "motion": 0.12019771337509155,
+        "random": -0.007566806394606829
+      },
+      {
+        "video_id": "_xMr-HKMfVA",
+        "n_frames": 149,
+        "learned": 0.374460369348526,
+        "motion": 0.1130128800868988,
+        "random": 0.07109377533197403
+      },
+      {
+        "video_id": "akI8YFjEmUw",
+        "n_frames": 134,
+        "learned": -0.2064240276813507,
+        "motion": 0.31486427783966064,
+        "random": -0.20945149660110474
+      },
+      {
+        "video_id": "b626MiF1ew4",
+        "n_frames": 236,
+        "learned": 0.060287490487098694,
+        "motion": -0.03484322130680084,
+        "random": -0.09886746853590012
+      },
+      {
+        "video_id": "byxOvuiIJV0",
+        "n_frames": 155,
+        "learned": 0.20994488894939423,
+        "motion": -0.038335856050252914,
+        "random": -0.05355934426188469
+      },
+      {
+        "video_id": "cjibtmSLxQ4",
+        "n_frames": 256,
+        "learned": -0.4162837862968445,
+        "motion": 0.05079108849167824,
+        "random": -0.016509786248207092
+      },
+      {
+        "video_id": "eQu1rNs0an0",
+        "n_frames": 165,
+        "learned": -0.08927416801452637,
+        "motion": 0.12422461807727814,
+        "random": -0.23473672568798065
+      },
+      {
+        "video_id": "fWutDQy1nnY",
+        "n_frames": 256,
+        "learned": 0.27402225136756897,
+        "motion": -0.2949860095977783,
+        "random": -0.0025678074453026056
+      },
+      {
+        "video_id": "gzDbaEs1Rlg",
+        "n_frames": 256,
+        "learned": -0.1892252415418625,
+        "motion": 0.10489529371261597,
+        "random": -0.12145157158374786
+      },
+      {
+        "video_id": "i3wAGJaaktw",
+        "n_frames": 157,
+        "learned": -0.26207059621810913,
+        "motion": -0.04064463451504707,
+        "random": -0.10430788993835449
+      },
+      {
+        "video_id": "iVt07TCkFM0",
+        "n_frames": 105,
+        "learned": 0.06260626018047333,
+        "motion": 0.2122330516576767,
+        "random": -0.0950445756316185
+      },
+      {
+        "video_id": "jcoYJXDG9sw",
+        "n_frames": 200,
+        "learned": -0.167116180062294,
+        "motion": 0.2703142464160919,
+        "random": -0.028424210846424103
+      },
+      {
+        "video_id": "kLxoNp-UchI",
+        "n_frames": 130,
+        "learned": 0.26180610060691833,
+        "motion": -0.12787556648254395,
+        "random": 0.0045528411865234375
+      },
+      {
+        "video_id": "oDXZc0tZe04",
+        "n_frames": 256,
+        "learned": 0.20484809577465057,
+        "motion": -0.3369249701499939,
+        "random": -0.037138793617486954
+      },
+      {
+        "video_id": "qqR6AEXwxoQ",
+        "n_frames": 256,
+        "learned": 0.04835560545325279,
+        "motion": 0.4849093556404114,
+        "random": -0.023163912817835808
+      },
+      {
+        "video_id": "sTEELN-vY30",
+        "n_frames": 149,
+        "learned": -0.2273499071598053,
+        "motion": 0.11390893906354904,
+        "random": -0.10657718032598495
+      },
+      {
+        "video_id": "uGu_10sucQo",
+        "n_frames": 168,
+        "learned": 0.5700366497039795,
+        "motion": 0.24670103192329407,
+        "random": -0.09962493181228638
+      },
+      {
+        "video_id": "vdmoEJ5YbrQ",
+        "n_frames": 256,
+        "learned": 0.18634772300720215,
+        "motion": 0.021777724847197533,
+        "random": 0.03585346043109894
+      },
+      {
+        "video_id": "xmEERLqJ2kU",
+        "n_frames": 256,
+        "learned": -0.05270013585686684,
+        "motion": -0.11338265240192413,
+        "random": 0.0551227442920208
+      },
+      {
+        "video_id": "xwqBXPGE9pQ",
+        "n_frames": 234,
+        "learned": -0.4764538109302521,
+        "motion": 0.42930951714515686,
+        "random": 0.041515931487083435
+      },
+      {
+        "video_id": "xxdtq8mxegs",
+        "n_frames": 145,
+        "learned": 0.6683632731437683,
+        "motion": 0.3575499951839447,
+        "random": -0.04863407462835312
+      },
+      {
+        "video_id": "z_6gVvQb2d0",
+        "n_frames": 256,
+        "learned": -0.0026779586914926767,
+        "motion": 0.4620158076286316,
+        "random": -0.02032788097858429
+      }
+    ]
+  },
+  "summe": {
+    "n_videos": 25,
+    "n_missing_cache": 0,
+    "aggregate": {
+      "learned": {
+        "mean": 0.11325313229812309,
+        "std": 0.22789693876660183
+      },
+      "motion": {
+        "mean": 0.07812655735760927,
+        "std": 0.17961625198518524
+      },
+      "random": {
+        "mean": 0.00892828356474638,
+        "std": 0.08452678135974531
+      }
+    },
+    "per_video": [
+      {
+        "video_id": "Air_Force_One",
+        "n_frames": 180,
+        "learned": -0.1421484351158142,
+        "motion": 0.3928639888763428,
+        "random": 0.031819913536310196
+      },
+      {
+        "video_id": "Base jumping",
+        "n_frames": 158,
+        "learned": 0.16162703931331635,
+        "motion": -0.14367033541202545,
+        "random": -0.05151674523949623
+      },
+      {
+        "video_id": "Bearpark_climbing",
+        "n_frames": 134,
+        "learned": 0.5507076382637024,
+        "motion": 0.23850920796394348,
+        "random": -0.06839735805988312
+      },
+      {
+        "video_id": "Bike Polo",
+        "n_frames": 103,
+        "learned": 0.2883297801017761,
+        "motion": -0.16702544689178467,
+        "random": -0.14833283424377441
+      },
+      {
+        "video_id": "Bus_in_Rock_Tunnel",
+        "n_frames": 172,
+        "learned": 0.38797426223754883,
+        "motion": 0.07150791585445404,
+        "random": -0.050240203738212585
+      },
+      {
+        "video_id": "Car_railcrossing",
+        "n_frames": 170,
+        "learned": -0.1399441808462143,
+        "motion": 0.01014771405607462,
+        "random": 0.022253159433603287
+      },
+      {
+        "video_id": "Cockpit_Landing",
+        "n_frames": 256,
+        "learned": 0.1888475865125656,
+        "motion": 0.10558624565601349,
+        "random": -0.05929560959339142
+      },
+      {
+        "video_id": "Cooking",
+        "n_frames": 86,
+        "learned": 0.02980329468846321,
+        "motion": 0.23215247690677643,
+        "random": 0.13427992165088654
+      },
+      {
+        "video_id": "Eiffel Tower",
+        "n_frames": 199,
+        "learned": 0.028532054275274277,
+        "motion": 0.025675347074866295,
+        "random": 0.07665600627660751
+      },
+      {
+        "video_id": "Excavators river crossing",
+        "n_frames": 256,
+        "learned": 0.0005593385430984199,
+        "motion": -0.05959030240774155,
+        "random": 0.09778625518083572
+      },
+      {
+        "video_id": "Fire Domino",
+        "n_frames": 54,
+        "learned": 0.04189060255885124,
+        "motion": 0.003316180780529976,
+        "random": -0.011015818454325199
+      },
+      {
+        "video_id": "Jumps",
+        "n_frames": 38,
+        "learned": -0.3605427145957947,
+        "motion": 0.051537368446588516,
+        "random": -0.14476419985294342
+      },
+      {
+        "video_id": "Kids_playing_in_leaves",
+        "n_frames": 107,
+        "learned": -0.07416876405477524,
+        "motion": -0.12568819522857666,
+        "random": 0.007895922288298607
+      },
+      {
+        "video_id": "Notre_Dame",
+        "n_frames": 192,
+        "learned": 0.11938969790935516,
+        "motion": -0.2756337523460388,
+        "random": -0.017370060086250305
+      },
+      {
+        "video_id": "Paintball",
+        "n_frames": 254,
+        "learned": 0.4411444664001465,
+        "motion": 0.10805948078632355,
+        "random": 0.0679362341761589
+      },
+      {
+        "video_id": "Playing_on_water_slide",
+        "n_frames": 103,
+        "learned": -0.09553882479667664,
+        "motion": 0.10317182540893555,
+        "random": -0.08863068372011185
+      },
+      {
+        "video_id": "Saving dolphines",
+        "n_frames": 223,
+        "learned": -0.12431177496910095,
+        "motion": -0.020064666867256165,
+        "random": 0.10949646681547165
+      },
+      {
+        "video_id": "Scuba",
+        "n_frames": 75,
+        "learned": 0.13345661759376526,
+        "motion": 0.1098150759935379,
+        "random": -0.011891892179846764
+      },
+      {
+        "video_id": "St Maarten Landing",
+        "n_frames": 71,
+        "learned": 0.4763917028903961,
+        "motion": 0.07005365937948227,
+        "random": 0.14651241898536682
+      },
+      {
+        "video_id": "Statue of Liberty",
+        "n_frames": 155,
+        "learned": 0.27234700322151184,
+        "motion": 0.3186684250831604,
+        "random": 0.0565982386469841
+      },
+      {
+        "video_id": "Uncut_Evening_Flight",
+        "n_frames": 256,
+        "learned": 0.06665856391191483,
+        "motion": 0.2136945128440857,
+        "random": 0.07999400049448013
+      },
+      {
+        "video_id": "Valparaiso_Downhill",
+        "n_frames": 173,
+        "learned": -0.06097640097141266,
+        "motion": 0.3640853762626648,
+        "random": 0.03449666500091553
+      },
+      {
+        "video_id": "car_over_camera",
+        "n_frames": 147,
+        "learned": 0.4049256145954132,
+        "motion": 0.42326727509498596,
+        "random": 0.09490060061216354
+      },
+      {
+        "video_id": "paluma_jump",
+        "n_frames": 86,
+        "learned": -0.09297609329223633,
+        "motion": 0.06780508905649185,
+        "random": 0.055144116282463074
+      },
+      {
+        "video_id": "playing_ball",
+        "n_frames": 104,
+        "learned": 0.32935023307800293,
+        "motion": -0.16508053243160248,
+        "random": -0.14110742509365082
+      }
+    ]
+  }
+}

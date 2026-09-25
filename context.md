@@ -656,12 +656,54 @@ classical baseline is not uniformly weak, it is weak *on short single-shot clips
   video it is indistinguishable from random and worse than a trivial motion baseline.
 - The circularity objection is therefore **partially** answered, not cleared. Say so plainly.
 
+### PAIRED TESTS (2026-09-25) — these supersede the unpaired CIs above
+
+Same videos in every arm, so paired is both valid and far more powerful. Mean per-video
+difference, 95% CI, and how often the first arm wins:
+
+| dataset | comparison | mean diff | 95% CI | wins | verdict |
+|---|---|---|---|---|---|
+| tvsum | learned − motion | **-0.1605** | [-0.269, -0.052] | 18/50 | **learned significantly WORSE** |
+| tvsum | learned − random | -0.0422 | [-0.126, +0.041] | 22/50 | no better than random |
+| tvsum | motion − random | +0.1184 | [+0.052, +0.185] | 35/50 | motion genuinely works |
+| summe | learned − motion | +0.0351 | [-0.077, +0.147] | 14/25 | **NOT significant** |
+| summe | learned − random | +0.1043 | [+0.007, +0.201] | 13/25 | learned beats random |
+| summe | motion − random | +0.0692 | [+0.002, +0.136] | 15/25 | motion also beats random |
+
+**"learned beats motion on SumMe" does NOT survive the paired test.** The earlier note flagged
+this as unestablished; it is now tested and it fails. Do not claim it.
+
+**The single honest summary: across both human-labelled datasets the scorer never demonstrably
+beats the motion baseline.** It loses on TVSum and ties on SumMe.
+
+### The distribution-shift explanation is only WEAKLY supported — correcting the note above
+
+Tested directly: Spearman between pool length and per-video learned rho, pooled over all 75
+videos (38-256 frames) is **-0.106**. Motion's is -0.053. Binned:
+
+| pool length | n | learned | motion |
+|---|---|---|---|
+| 38-150 | 25 | +0.0533 | +0.1332 |
+| 150-250 | 27 | -0.0332 | +0.0670 |
+| 250-256 | 23 | -0.0145 | +0.0918 |
+
+There is a trend in the right direction but it is weak, and the bins confound dataset with length.
+The TVSum/SumMe gap is larger than length alone explains, so something dataset-specific —
+annotation protocol, content type, shot structure — matters more than raw duration. The earlier
+claim that "distribution shift is the leading explanation" was too strong on this evidence.
+
+### The framing that actually holds
+
+The scorer is a **caption-relevance predictor**, and it is validated as one: on MSR-VTT it clearly
+beats motion on caption quality (motion is a null there). It is **not** a human-importance
+predictor: on human-annotated data it never demonstrably beats motion. Those are different
+targets, and this project measured both instead of assuming they coincide. The inversion — learned
+>> motion for captions, motion >= learned for human importance — is the finding, and it is a more
+interesting one than either arm alone.
+
 ### Open / next
 
-1. **Paired per-video test** (learned vs motion on the same videos) — `validate_scorer.json` has
-   per-video rows. The unpaired CIs above overlap on SumMe, so "learned > motion" is not yet
-   established there. Do this before claiming it.
-2. README limitation #2 must be rewritten from "not yet run" to this split result.
-3. This is the strongest argument yet for a shot-aware or diversity-aware selection term, and for
-   training the scorer on longer multi-shot video. Previously speculative; now motivated by a
-   measured failure.
+1. README limitation #2 rewritten from "not yet run" to this split result. DONE.
+2. Shot-aware / diversity-aware selection and training the scorer on longer multi-shot video are
+   now motivated by a measured failure rather than speculation. Both optional; neither gates the
+   MSR-VTT result.
