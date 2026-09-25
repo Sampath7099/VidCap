@@ -20,8 +20,12 @@ MSR-VTT test, 500 clips, greedy decoding. CIDEr-D:
 | 3 | 0.5246 | 0.5136 | **0.5270** | 0.5359 | +0.0024 | 21% |
 | 4 | 0.5397 | 0.5125 | 0.5302 | 0.5443 | −0.0095 | — |
 
-**learned K=1 (0.4977) > uniform K=2 (0.4893)** — a 2× cut in vision-encoder calls at equal
-quality, recovering 66% of the oracle ceiling without ever seeing a caption at inference.
+**learned K=1 (0.4977) > uniform K=2 (0.4893)** — one well-chosen frame carries more
+caption-relevant information than two evenly-spaced ones, recovering 66% of the oracle ceiling
+without ever seeing a caption at inference.
+
+This is a claim about *information per frame*, not about wall-clock cost — see
+[What this does NOT buy you](#what-this-does-not-buy-you-yet) before reading it as a speedup.
 
 On **BLEU-4 and ROUGE-L the learned selector wins at every budget**. Only 1 of 12 metric-budget
 cells is a loss (CIDEr at K=4, −0.0095) — and measured run-to-run noise between two independent
@@ -89,6 +93,29 @@ curves are independent of it — but it does bound what the scorer can be claime
 
 Reproduce: `python3 -m scripts.validate_scorer --datasets tvsum,summe` (numbers in
 [results/validate_scorer.json](results/validate_scorer.json)).
+
+## What this does NOT buy you (yet)
+
+A lower frame budget is **not** a speedup in this implementation, and it is worth being precise
+about why — measured, not argued:
+
+1. **The decoder's cost is flat in K.** The shipped connector is mean-pool: it averages the K
+   frames into one vector and the projector expands it to 8 prefix tokens regardless. Measured
+   greedy decode at K=1/2/4/8: **4.73 / 4.53 / 4.49 / 4.56 s** — identical. Only the temporal
+   connector would make the LLM's cost scale with K.
+2. **Selecting 1 of N frames requires encoding all N.** The scorer consumes SigLIP embeddings, so
+   picking the best frame from a 35-frame pool runs SigLIP 35 times. Uniform K=2 runs it twice.
+   On a fresh video the learned path is currently *more* expensive, not less.
+
+So the honest framing: **frame choice matters, and that is a claim about information content.**
+Converting it into a compute saving needs **two-tier selection** — score the pool with a cheap
+encoder (CLIP ViT-B/32 @224 is a fraction of SigLIP-so400m @384), then run the expensive encoder
+only on the selected K. That is the natural next build, and the result above is the evidence it
+would pay off. It is not implemented here.
+
+Where the budget claim *is* already real: any setting where embeddings are computed once and
+reused (archives, repeated queries over the same footage), the question is purely which frames to
+keep — and there, fewer better frames is a direct win.
 
 ## How it works
 
