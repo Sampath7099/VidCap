@@ -609,3 +609,59 @@ must say so plainly — the MSR-VTT result stands on its own (blind control, ora
 curves are all internally valid), but the human-alignment claim would not be available.
 
 Run before deciding anything: `build_cache tvsum && build_cache summe && validate_scorer` on GPU.
+
+## HUMAN VALIDATION, FULL RUN (2026-09-25) — split result, and it is not the hoped-for one
+
+Full cache built on Kaggle. `validate_scorer --datasets tvsum,summe`, mean within-video Spearman
+against human importance, with 95% CI (normal approx, sd/sqrt(n)):
+
+| dataset | n | arm | rho | 95% CI | verdict |
+|---|---|---|---|---|---|
+| tvsum | 50 | **learned** | **-0.0546** | [-0.134, +0.025] | **includes 0 — null** |
+| tvsum | 50 | motion | +0.1060 | [+0.048, +0.164] | real, positive |
+| tvsum | 50 | random | -0.0124 | [-0.038, +0.013] | includes 0 (sanity check passes) |
+| summe | 25 | **learned** | **+0.1133** | [+0.024, +0.203] | **real, positive** |
+| summe | 25 | motion | +0.0781 | [+0.008, +0.149] | real, weakly positive |
+| summe | 25 | random | +0.0089 | [-0.024, +0.042] | includes 0 (sanity check passes) |
+
+**`random` lands on zero in both datasets.** The harness is calibrated; the rest of the table can
+be trusted. Check this first if these numbers are ever regenerated.
+
+**The n=3 pilot's negative sign was real on TVSum and wrong on SumMe.** Good argument for not
+having drawn a conclusion from it.
+
+### SumMe is the control that separates the two explanations
+
+The earlier note listed distribution shift and construct mismatch as rival explanations. SumMe
+settles it. Both datasets measure *human* importance, so if the problem were construct mismatch —
+summarisation importance simply not being caption-relevance — the scorer would fail on both. It
+does not. It works on SumMe and fails on TVSum, and the salient difference between them is video
+form: TVSum is 2-4 minute multi-shot YouTube; SumMe is shorter and more continuous, closer to the
+15s single-shot MSR-VTT clips the scorer trained on. **Distribution shift is the leading
+explanation.** (Not proven — the datasets also differ in annotation protocol — but it is the
+reading the evidence supports.)
+
+Same mechanism explains motion winning on TVSum: frame-difference detects shot boundaries, and in
+long multi-shot video annotators mark segment transitions as important. The scorer never saw shot
+structure during training. Note this inverts MSR-VTT, where motion was a genuine null — the
+classical baseline is not uniformly weak, it is weak *on short single-shot clips*.
+
+### What may and may not be claimed
+
+- **Untouched**: the MSR-VTT headline. Blind control, oracle ceiling and budget curves are
+  internally valid and do not depend on any of this.
+- **Supported**: the scorer tracks human importance on video resembling its training
+  distribution (SumMe, +0.113).
+- **NOT supported**: that the scorer captures human importance in general. On long multi-shot
+  video it is indistinguishable from random and worse than a trivial motion baseline.
+- The circularity objection is therefore **partially** answered, not cleared. Say so plainly.
+
+### Open / next
+
+1. **Paired per-video test** (learned vs motion on the same videos) — `validate_scorer.json` has
+   per-video rows. The unpaired CIs above overlap on SumMe, so "learned > motion" is not yet
+   established there. Do this before claiming it.
+2. README limitation #2 must be rewritten from "not yet run" to this split result.
+3. This is the strongest argument yet for a shot-aware or diversity-aware selection term, and for
+   training the scorer on longer multi-shot video. Previously speculative; now motivated by a
+   measured failure.
