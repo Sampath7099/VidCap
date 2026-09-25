@@ -59,6 +59,37 @@ misses the only event in the video. The *caption* is wrong (no person, no city):
 daylight clips of people doing things, and a dark sky with a flash is far out of distribution.
 Both halves of that are shown on purpose.
 
+## Does it match what humans think is important? Partly — and this is the honest half
+
+The obvious criticism of the result above: the scorer is trained on SigLIP-to-caption similarity
+and the captioner consumes SigLIP embeddings, so the two are aligned by construction. To test it,
+the scorer was run against **TVSum and SumMe** — video-summarisation datasets with per-frame
+importance annotated by humans who never saw SigLIP.
+
+![scorer vs human importance](figures/human_validation.png)
+
+Mean within-video Spearman, 95% CI. Paired per-video tests (same videos in every arm):
+
+| dataset | n | learned | motion | random | learned − motion (paired) |
+|---|---|---|---|---|---|
+| TVSum | 50 | **−0.055** | +0.106 | −0.012 | **−0.161**, CI [−0.269, −0.052] — worse |
+| SumMe | 25 | **+0.113** | +0.078 | +0.009 | +0.035, CI [−0.077, +0.147] — n.s. |
+
+**`random` lands on zero in both**, so the harness is calibrated and the rest can be trusted.
+
+**The honest summary: across both human-labelled datasets the scorer never demonstrably beats the
+motion baseline.** It is significantly worse on TVSum and statistically tied on SumMe. It does beat
+random on SumMe, but not on TVSum.
+
+So the inversion is the real finding: **learned ≫ motion for caption quality, motion ≥ learned for
+human importance.** The scorer is a *caption-relevance* predictor and is validated as one. It is
+not a human-importance predictor, and this project measured both rather than assuming they
+coincide. Nothing here weakens the MSR-VTT result — the blind control, oracle ceiling and budget
+curves are independent of it — but it does bound what the scorer can be claimed to do.
+
+Reproduce: `python3 -m scripts.validate_scorer --datasets tvsum,summe` (numbers in
+[results/validate_scorer.json](results/validate_scorer.json)).
+
 ## How it works
 
 ```
@@ -142,10 +173,11 @@ python3 -m scripts.plot_curves out/eval_msrvtt_test.json figures/budget_curves.p
 
 1. **The oracle is not achievable.** It reads the test caption. It is an upper bound on selection
    headroom, not a baseline anyone could deploy.
-2. **Circularity.** The scorer is trained on SigLIP-to-caption similarity and the captioner
-   consumes SigLIP embeddings, so the two are aligned by construction. Validation against human
-   frame-importance labels (TVSum/SumMe) is the proper rebuttal and **has not been run yet**.
-   This is the sharpest available criticism of the result and it is not yet answered.
+2. **Circularity — tested, and only partly answered.** The scorer and the captioner share a
+   representation, so their agreement is partly by construction. The TVSum/SumMe run above is the
+   check, and it does not clear the scorer: it never demonstrably beats a motion baseline on
+   human labels. The captioning result stands on its own evidence, but "the scorer finds the
+   frames humans consider important" is **not** a claim this project supports.
 3. **Noise floor ~0.007 CIDEr**, measured across two independent scorer trainings. Any claim
    resting on a gap under ~0.01 needs more seeds. The K=4 loss is inside that zone.
 4. **MSR-VTT saturates at K=4.** 15-second single-shot clips are frame-redundant; four evenly
@@ -157,8 +189,9 @@ python3 -m scripts.plot_curves out/eval_msrvtt_test.json figures/budget_curves.p
 
 ## Status
 
-Done: embedding cache, connector training, blind control, oracle ceiling, frame scorer,
-four-arm budget curves, end-to-end demo, video Q&A + summarization code.
+Done: embedding cache, connector training, blind control, oracle ceiling, frame scorer, four-arm
+budget curves, TVSum/SumMe human-importance validation, end-to-end demo.
 
-Not done: TVSum/SumMe human-importance validation, Stage C LoRA, Q&A training (the code is written
-and gate-tested but has never been trained), diversity-aware selection, connector/rank ablations.
+Not done: Stage C LoRA; video Q&A (code is written and gate-tested in `scripts/train.py --task qa`
+but has never been trained, so there is no number for it); diversity-aware selection;
+connector and LoRA-rank ablations. None are load-bearing for the result above.
