@@ -133,12 +133,22 @@ def summe(root=None):
     from scipy.io import loadmat
     root = Path(root or DATA / "summe")
     vids = _find_videos(root)
-    scores = {}
-    for m in sorted(root.rglob("*.mat")):
-        mat = loadmat(m)
+    scores, skipped = {}, []
+    # Only GT/*.mat, not every .mat under root. The root can legitimately be a combined dataset
+    # whose other half ships TVSum's MATLAB sources — one of those is v7.3/HDF5, which loadmat
+    # raises NotImplementedError on. SumMe's own GT is v5 and reads fine.
+    for m in sorted(root.rglob("GT/*.mat")):
+        try:
+            mat = loadmat(m)
+        except (NotImplementedError, ValueError) as e:   # v7.3/HDF5, or not a .mat at all
+            skipped.append(f"{m.name} ({type(e).__name__})")
+            continue
         if "gt_score" not in mat:
+            skipped.append(f"{m.name} (no gt_score)")
             continue
         scores[m.stem] = np.asarray(mat["gt_score"], np.float32).ravel()
+    if skipped:   # never silent: a dropped annotation is a dropped video, not a warning to ignore
+        print(f"summe: skipped {len(skipped)} unreadable GT file(s): {skipped[:5]}")
     if not scores:
         _require_root(root, "summe", "GT/*.mat with a gt_score field")
     recs = [{"video_id": k, "path": vids[k], "split": "eval", "captions": []}
