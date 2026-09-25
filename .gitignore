@@ -6,3 +6,4 @@ out/
 *.pt
 *.zip
 .ipynb_checkpoints/
+results_validation/
