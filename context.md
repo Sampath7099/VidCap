@@ -448,6 +448,11 @@ figures match `scorer.pt` as shipped in `results.zip`. CIDEr-D, 500 test clips, 
 **Headline: learned K=1 (0.4977) > uniform K=2 (0.4893)** — one learned frame beats two uniform
 ones, a 2x budget cut at equal quality, recovering 66% of the oracle ceiling with no caption.
 
+**CORRECTION (2026-09-25): "budget cut" here means frames, NOT compute.** Decode is flat in K
+(4.73/4.53/4.49/4.56s at K=1/2/4/8 — mean-pool gives 8 prefix tokens regardless), and selecting
+1 of N frames requires SigLIP over all N. Do not restate this as a speedup. See README
+"What this does NOT buy you (yet)".
+
 **On BLEU-4 and ROUGE-L, learned beats uniform at EVERY budget** (BLEU-4 0.3886/0.3853/0.4044/
 0.4004 vs 0.3514/0.3806/0.3977/0.3945; ROUGE-L 0.5990/0.6046/0.6123/0.6123 vs 0.5871/0.5975/
 0.6101/0.6089). Only 1 of 12 metric-budget cells is a loss: CIDEr at K=4.
