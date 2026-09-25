@@ -99,11 +99,25 @@ def msrvtt_qa(root=None):
 
 # --- TVSum / SumMe: human-annotated frame importance (scorer ground truth) -------
 
+def _require_root(root, name, what):
+    """A missing/dangling root must say so. `ln -sfn` to a wrong path creates a broken symlink
+    silently, and rglob over one yields nothing — which surfaced as a bare StopIteration from
+    inside the loader with no hint that the mount was the problem."""
+    if not Path(root).exists():
+        raise SystemExit(f"{name}: {root} does not exist (dangling symlink?). "
+                         f"See DATASETS.md for the expected layout.")
+    raise SystemExit(f"{name}: no {what} under {root} — wrong root, or the dataset is not "
+                     f"attached. Contents: {sorted(p.name for p in Path(root).iterdir())[:10]}")
+
+
 def tvsum(root=None):
-    """Records + {video_id: (n_shots,) mean importance over 20 annotators}. Shots are 2s."""
+    """Records + {video_id: (n_frames,) mean importance over 20 annotators}. Per-frame, not
+    per-shot — verified against the real files; see DATASETS.md."""
     root = Path(root or DATA / "tvsum")
     vids = _find_videos(root)
-    tsv = next(root.rglob("*anno.tsv"))
+    tsv = next(root.rglob("*anno.tsv"), None)
+    if tsv is None:
+        _require_root(root, "tvsum", "*anno.tsv")
     scores = {}
     for line in Path(tsv).read_text().splitlines():
         vid, _cat, anno = line.split("\t")[:3]
@@ -125,6 +139,8 @@ def summe(root=None):
         if "gt_score" not in mat:
             continue
         scores[m.stem] = np.asarray(mat["gt_score"], np.float32).ravel()
+    if not scores:
+        _require_root(root, "summe", "GT/*.mat with a gt_score field")
     recs = [{"video_id": k, "path": vids[k], "split": "eval", "captions": []}
             for k in sorted(scores) if k in vids]
     return recs, scores
