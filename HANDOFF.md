@@ -300,6 +300,64 @@ The caption evaluation used the same Cells 1–2 plus
 `run("python -m scripts.evaluate --ckpt stageB --scorer scorer --oracle --budgets 1,2,3,4")`
 (needs `scorer.pt`). It is done — do not rerun it.
 
+### ActivityNet paragraph evaluation (committed, ~4.5 h)
+
+Measures whether learned frame selection helps `watch.py`'s timeline and summary on long
+videos, against human-written paragraphs. Same **Cell 1** as the Q&A run.
+
+**Add Input:** `almirneto/activitynet-captions` (42 GB, ~15k videos as `videos/v_<id>.mp4|mkv`,
+plus `val_1.json` / `val_2.json` — mounted, not downloaded) and `vidcap-checkpoints`
+(`stageB.pt`, `scorer.pt`). The MSR-VTT cache is not needed. To resume a timed-out run, also
+attach that version's output (it contains `cache_activitynet/`).
+
+```python
+# Cell 2 — data, cache folder that survives the commit, checkpoints
+for d in (DATA, OUT / "cache", OUT / "checkpoints"):
+    d.mkdir(parents=True, exist_ok=True)
+root = pathlib.Path("/kaggle/input")
+v1 = [p for p in root.rglob("val_1.json") if (p.parent / "videos").exists()]
+assert len(v1) == 1, f"attach almirneto/activitynet-captions; found {v1}"
+an = DATA / "activitynet"
+if an.is_symlink() or an.exists():
+    an.unlink()
+an.symlink_to(v1[0].parent); assert an.exists()
+print("activitynet videos:", sum(1 for _ in (an / "videos").iterdir()))
+
+KEEP = pathlib.Path("/kaggle/working/cache_activitynet"); KEEP.mkdir(exist_ok=True)
+for prev in root.rglob("cache_activitynet"):          # resume from an attached earlier output
+    for f in prev.glob("*.npz"):
+        if not (KEEP / f.name).exists():
+            shutil.copy(f, KEEP / f.name)
+link = OUT / "cache" / "activitynet"
+if link.is_symlink() or link.exists():
+    link.unlink()
+link.symlink_to(KEEP); assert link.exists()
+for name in ("stageB.pt", "scorer.pt"):
+    hits = list(root.rglob(name)); assert hits, f"{name} missing"
+    shutil.copy(hits[0], OUT / "checkpoints" / name)
+print("resumed shards:", len(list(KEEP.glob("*.npz"))))
+```
+
+```python
+# Cell 3 — embed 300 val videos, evenly spread (~2 h). Capped at 5 h so evaluation always runs;
+# shards already written are kept, and caption embeddings are written first.
+run("timeout 5h python -m scripts.build_cache activitynet --limit 300 || echo 'cache stopped at cap'")
+n = len([p for p in KEEP.glob("*.npz") if p.stem != "_captions"])
+print("cached videos:", n); assert n >= 100, "too few videos to evaluate"
+assert (KEEP / "_captions.npz").exists(), "oracle arm needs caption embeddings"
+```
+
+```python
+# Cell 4 — 5 arms + 2 summary arms, saved after each (~2.5 h)
+run(f"python -m scripts.evaluate_paragraphs --summaries --out {SAVE}/eval_activitynet_paragraphs.json")
+```
+
+Arms: fixed 15 s windows + uniform (the naive pipeline); scenes + uniform / motion / **learned** /
+oracle; Qwen summaries of the uniform and learned timelines. K=2 frames per segment. Per-video
+CIDEr-D gives paired bootstrap CIs. Expect low absolute CIDEr: the metric's length penalty
+punishes a 10-sentence timeline against ~3.7-sentence references, which is why the summaries
+are scored too.
+
 ### For the TVSum/SumMe validation instead
 
 Attach `veerchheda/iitp-summe-tvsum`. Derive roots rather than guessing mount names — the mount

@@ -38,6 +38,19 @@ def main():
     model, proc, device = load_vision()
     print(f"vision encoder on {device}")
 
+    # Caption text embeddings: the Phase 1 relevance labels (text is a label source, never a model
+    # input). Written BEFORE the videos: seconds of work, and a time-capped run that stops partway
+    # through the videos still leaves the oracle arm something to read.
+    caps = [(r["video_id"], c) for r in records for c in r["captions"]]
+    if caps:
+        emb = embed_texts(model, proc, device, [c for _, c in caps])
+        out = CACHE / args.dataset / "_captions.npz"
+        out.parent.mkdir(parents=True, exist_ok=True)
+        np.savez_compressed(out, emb=emb.astype(np.float32),
+                            video_id=np.array([v for v, _ in caps]),
+                            text=np.array([c for _, c in caps]))
+        print(f"cached {len(caps)} caption embeddings -> {out}")
+
     # mininterval: Kaggle's committed runs capture stdout to a file where \r doesn't
     # collapse, so a default-rate tqdm writes thousands of lines into the log.
     done, empty = 0, []
@@ -49,17 +62,6 @@ def main():
         if n == 0:
             empty.append(r["video_id"])
         done += 1
-
-    # Caption text embeddings: the Phase 1 relevance labels (text is a label source, never a model input).
-    caps = [(r["video_id"], c) for r in records for c in r["captions"]]
-    if caps:
-        emb = embed_texts(model, proc, device, [c for _, c in caps])
-        out = CACHE / args.dataset / "_captions.npz"
-        out.parent.mkdir(parents=True, exist_ok=True)
-        np.savez_compressed(out, emb=emb.astype(np.float32),
-                            video_id=np.array([v for v, _ in caps]),
-                            text=np.array([c for _, c in caps]))
-        print(f"cached {len(caps)} caption embeddings -> {out}")
 
     print(f"done: {done} cached, {len(empty)} undecodable {empty[:10]}")
 

@@ -107,11 +107,12 @@ def _tfidf(toks, n, df, log_n_docs):
     return vec, math.sqrt(norm), len(toks)
 
 
-def cider_d(hyps, refs, max_n=4, sigma=6.0):
-    """tf-idf n-gram cosine with count clipping and a gaussian length penalty."""
+def cider_d(hyps, refs, max_n=4, sigma=6.0, per_item=False):
+    """tf-idf n-gram cosine with count clipping and a gaussian length penalty. per_item returns
+    each hypothesis's score; idf comes from all refs, so those scores pair across systems."""
     df = _doc_freq(refs, max_n)
     log_n = math.log(max(len(refs), 1))
-    total = 0.0
+    items = []
     for h, rs in zip(hyps, refs):
         ht, rts = tokenize(h), [tokenize(r) for r in rs]
         per_n = []
@@ -128,8 +129,8 @@ def cider_d(hyps, refs, max_n=4, sigma=6.0):
                     dot /= hn * rn
                 s += dot * math.exp(-((hl - rl) ** 2) / (2 * sigma ** 2))
             per_n.append(s / max(len(rts), 1))
-        total += 10.0 * sum(per_n) / max_n
-    return total / max(len(hyps), 1)
+        items.append(10.0 * sum(per_n) / max_n)
+    return items if per_item else sum(items) / max(len(hyps), 1)
 
 
 def evaluate(hyps, refs):

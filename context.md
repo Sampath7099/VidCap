@@ -825,3 +825,22 @@ frozen Qwen2.5-1.5B-Instruct.
 
 Summary quality is bounded by MSR-VTT captions (generic) and a 1.5B text model (small
 embellishments). No metric; ActivityNet Captions paragraphs would be the way to add one.
+
+## ActivityNet paragraph evaluation — set up (2026-09-27)
+
+Source found: Kaggle `almirneto/activitynet-captions` (42 GB, ~15k videos, flat `videos/v_<id>`,
+official val_1/val_2 JSONs). `datasets.activitynet()` now returns val videos only, each with its
+reference paragraphs (one per annotation file, sentences in time order).
+
+`scripts/evaluate_paragraphs.py` runs watch.py's timeline on each cached val video under 5 arms
+— fixed 15 s windows + uniform (naive), scenes + uniform / motion / learned / oracle — at K=2 per
+segment, captions batched across videos, and optionally Qwen summaries of the uniform and learned
+timelines. Scored against both reference paragraphs; per-video CIDEr-D (new `per_item` flag, idf
+from all refs so scores pair) gives paired bootstrap CIs. Saves after every arm.
+
+`build_cache` now writes `_captions.npz` before the video loop, so a time-capped cache still
+feeds the oracle. Dry run on a 3-video fake cache with real Qwen: all 5 caption arms complete.
+
+Caveat to state with results: CIDEr-D's gaussian length penalty (sigma 6 tokens) punishes a
+~10-sentence timeline against ~3.7-sentence references, so absolute scores will be low;
+between-arm differences on the same segmentation are the measurement.

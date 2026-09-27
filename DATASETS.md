@@ -8,7 +8,7 @@ $VIDCAP_DATA/
   msrvtt/       *.mp4 + *videodatainfo*.json      (official train/val/test split read from JSON)
   tvsum/        *.mp4 + ydata-tvsum50-anno.tsv
   summe/        *.mp4|*.webm + GT/*.mat
-  activitynet/  *.mp4 + train.json / val_1.json
+  activitynet/  videos/*.mp4|mkv + val_1.json / val_2.json   (val only; two reference paragraphs)
   holdout/      your own clips — never trained on, never scored
 ```
 
@@ -17,7 +17,7 @@ $VIDCAP_DATA/
 | MSR-VTT | Kaggle: search "msrvtt"; official annotations `train_val_videodatainfo.json` + `test_videodatainfo.json` | ~7 GB |
 | TVSum | Kaggle mirrors of `ydata-tvsum50`; annotations are the 50-video × 20-annotator TSV | ~2.7 GB |
 | SumMe | Kaggle mirrors of `SumMe`; per-video `GT/*.mat` with `gt_score` | ~2.2 GB |
-| ActivityNet Captions | Captions JSON is small and official (`activity-net.org`). **Videos are the problem** — no single clean public mirror; use whatever subset a Kaggle mirror provides. The loader keeps only videos actually present. | subset |
+| ActivityNet Captions | **Kaggle `almirneto/activitynet-captions`** (found 2026-09-27): ~15k of the ~20k YouTube videos as flat `videos/v_<id>.mp4` (a few `.mkv`), plus official `train.json`, `val_1.json`, `val_2.json`. Attach it as a Kaggle input — do not download. The loader reads val only and keeps videos actually present. | 42 GB |
 | holdout | Self-sourced. A handful of clips, mixed short/long. | tiny |
 
 ## Notes
