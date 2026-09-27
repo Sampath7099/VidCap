@@ -771,3 +771,29 @@ the answer-prior floor any accuracy must clear.
 
 Planned eval: `--scorer scorer --budgets 1,2,4 --limit 5000` — the same uniform/motion/learned
 comparison as captioning, on a second task. Summaries on 10 test clips, qualitative only.
+
+## Video Q&A — first real numbers (2026-09-27)
+
+Committed Kaggle run (HANDOFF §7): `train --stage B --task qa --init stageB --epochs 1`, then
+`evaluate_qa --ckpt qaB --scorer scorer --budgets 1,2,4 --limit 5000` → 5,000 questions spread
+over 2,962 test videos. Raw: `results/evalqa_msrvtt_qa_test.json`.
+
+| K | uniform | motion | learned | l − u |
+|---|---|---|---|---|
+| 1 | 0.3746 | 0.3724 | 0.3972 | +0.0226 |
+| 2 | 0.3960 | 0.3898 | 0.4016 | +0.0056 |
+| 4 | 0.4074 | 0.4024 | 0.4018 | −0.0056 |
+
+Answer-prior floor on this sample ("man"): 0.1002. Binomial SE per arm ~0.007; unpaired SE of a
+difference ~0.010, so K=1 is ~2.3 unpaired SE — paired would be tighter, but per-question
+predictions were not saved. K=2 and K=4 differences are noise.
+
+The captioning shape reproduces on a second task: learned helps at K=1, vanishes by K=4, learned
+K=1 ≈ uniform K=2, motion ≈ uniform or worse. By type at K=1, learned gains on who (0.502 vs 0.462)
+and what (0.331 vs 0.315); how/when/where have n ≤ 119 and are not interpretable.
+
+Composed summaries on 10 test clips (`results/summaries.txt`, progress-bar noise stripped): captions
+plausible, some facts informative (wedding, street), but "How many: two" in 9/10 — the answer prior
+— and "Where: place"-style empties. Qualitative only; no metric exists for it on MSR-VTT.
+
+`qaB.pt` was NOT in the downloaded zip (only `results/`); it lives in the Kaggle version output.

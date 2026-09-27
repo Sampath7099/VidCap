@@ -34,9 +34,15 @@ frozen Qwen2.5-1.5B decoder joined by ~62M from-scratch parameters, plus a 0.72M
 - BLEU-4 / ROUGE-L / CIDEr-D match `pycocoevalcap` to ~1e-11 — numbers are comparable to published
   ones.
 
-**Written but never trained** — do not describe as a result:
-- Video Q&A and composed summarisation (`--task qa`, `scripts/evaluate_qa.py`,
-  `scripts/summarize.py`). Gate-tested, no checkpoint, no accuracy number.
+**Video Q&A — trained and measured 2026-09-27** (`qaB`, 1 epoch). MSRVTT-QA exact match,
+5,000 test questions spread over 2,962 videos: uniform / motion / **learned** at K=1 =
+0.375 / 0.372 / **0.397**; K=2 0.396 / 0.390 / 0.402; K=4 0.407 / 0.402 / 0.402. Answer-prior
+floor 0.100. Same shape as captioning: learned helps at K=1, gone by K=4. Raw:
+[results/evalqa_msrvtt_qa_test.json](results/evalqa_msrvtt_qa_test.json).
+
+**Composed summaries** (`scripts/summarize.py`) — qualitative only, and weak: "How many: two" in
+9 of 10 outputs is the answer prior. [results/summaries.txt](results/summaries.txt). Do not
+present the summariser as validated.
 
 **Not done:** Stage C LoRA; diversity-aware selection; connector and LoRA-rank ablations. None are
 load-bearing.
@@ -125,6 +131,7 @@ These were wrong at some point in this project's history and got corrected. Do n
 | All code + README + figures + result JSONs | GitHub `Sampath7099/VidCap` | — |
 | MSR-VTT embedding cache (10k clips) | Kaggle Dataset | 8.5 GPU-h |
 | `stageB.pt`, `blind.pt`, `scorer.pt` | Kaggle `vidcap-checkpoints` | 4.6 GPU-h |
+| `qaB.pt` (Q&A, 1 epoch) | Output of the 2026-09-27 Kaggle Q&A notebook version — publish it as a Dataset | ~5.5 GPU-h |
 | TVSum/SumMe cache + result JSONs + `scorer.pt` | `vidcap_gobag.zip` (44 MB, off-machine) | ~30 GPU-min |
 | TVSum + SumMe raw videos | Kaggle `veerchheda/iitp-summe-tvsum` | 15 min download |
 | MSR-VTT raw videos | `https://www.robots.ox.ac.uk/~maxbain/frozen-in-time/data/MSRVTT.zip` | ~15 min |
@@ -146,7 +153,7 @@ Results in §3, [results/eval_full_test.json](results/eval_full_test.json); READ
 `figures/budget_curves.png` updated. Wall-clock on a T4 including setup: roughly 4–5 h, not the
 1–1.5 h originally estimated.
 
-### 6b. Q&A training — optional, gives Phase 2 a number. MUCH longer than first estimated
+### 6b. Q&A training — DONE 2026-09-27 (results in §2). Recipe kept for reruns
 
 ```bash
 python -m scripts.fetch_qa

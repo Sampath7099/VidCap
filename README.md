@@ -104,6 +104,54 @@ curves are independent of it — but it does bound what the scorer can be claime
 Reproduce: `python3 -m scripts.validate_scorer --datasets tvsum,summe` (numbers in
 [results/validate_scorer.json](results/validate_scorer.json)).
 
+## Second task: video question answering
+
+The same frozen backbones and the same selectors, retrained for **MSRVTT-QA** (one-word answers
+to questions about the same clips). The connector is initialised from the captioning model and
+trained for **1 epoch** on 149k questions; the loss covers only the answer, so the question
+conditions generation rather than being a target. Nothing is re-embedded: QA reuses the
+captioning cache.
+
+Exact-match accuracy, 5,000 test questions sampled evenly across 2,962 of the 2,990 test videos,
+greedy:
+
+| K | uniform | motion | **learned** | learned − uniform |
+|---|---|---|---|---|
+| 1 | 0.3746 | 0.3724 | **0.3972** | **+0.0226** |
+| 2 | 0.3960 | 0.3898 | **0.4016** | +0.0056 |
+| 4 | 0.4074 | 0.4024 | 0.4018 | −0.0056 |
+
+Always answering the most common answer ("man") scores **0.100**, so the model is answering
+from the video, not the answer prior.
+
+**The captioning pattern reproduces on a second task.** Learned selection helps most at K=1
+(+2.3 points; the binomial standard error of one arm is ~0.7 points), is marginal at K=2 and
+gone by K=4. Learned K=1 (0.397) again matches uniform K=2 (0.396). Motion is again no better
+than uniform. The breakdown by question type is in
+[results/evalqa_msrvtt_qa_test.json](results/evalqa_msrvtt_qa_test.json): at K=1 learned gains
+most on *who* (0.502 vs 0.462) and *what* (0.331 vs 0.315).
+
+Caveats: 1 epoch, one seed, 5,000 of 72,821 test questions, and no per-question pairing saved, so
+the K=1 gap is suggestive-to-solid rather than a formal significance test. Published MSRVTT-QA
+numbers use the full test set; this is not a comparison against them.
+
+### Composed summaries — qualitative, and weaker than the numbers above
+
+`scripts/summarize.py` writes the caption, then asks the QA model fixed probe questions (who /
+where / what / how many) and keeps answers the caption does not already state. All 10 outputs
+are in [results/summaries.txt](results/summaries.txt):
+
+```
+video7310  A man is dancing with a woman. Where: wedding. How many: three.
+video8510  A man is walking with a dog. Where: street. How many: two.
+video7610  A man is talking about the weight of a hammer. Where: place. What: text. How many: two.
+```
+
+The captions are reasonable and some facts add real information ("wedding", "street"). But
+**"How many: two" appears in 9 of 10 summaries** — that is the answer prior, not counting — and
+answers like "Where: place" carry nothing. MSR-VTT has no multi-sentence ground truth, so there is
+no metric here. Treat it as a demo of composing the two models, not as a validated summariser.
+
 ## What this does NOT buy you (yet)
 
 A lower frame budget is **not** a speedup in this implementation, and it is worth being precise
@@ -189,6 +237,7 @@ frozen SigLIP vision encoder, frozen Qwen2.5-1.5B decoder, PyTorch, OpenCV for d
 ```bash
 pip install -r requirements.txt
 python3 -m scripts.caption yourclip.mp4 --k 2 --select learned,uniform
+python3 -m scripts.summarize yourclip.mp4 --scorer scorer --ask "what is the man holding?"
 ```
 
 Runs on CPU (~1–2 min/clip; needs ~10 GB RAM for both models in fp32). Add `--select
@@ -229,8 +278,8 @@ python3 -m scripts.plot_curves out/eval_msrvtt_test.json figures/budget_curves.p
 ## Status
 
 Done: embedding cache, connector training, blind control, oracle ceiling, frame scorer, four-arm
-budget curves, TVSum/SumMe human-importance validation, end-to-end demo.
+budget curves on the full test split, TVSum/SumMe human-importance validation, video Q&A (1 epoch,
+three-selector comparison), composed summaries, end-to-end demo.
 
-Not done: Stage C LoRA; video Q&A (code is written and gate-tested in `scripts/train.py --task qa`
-but has never been trained, so there is no number for it); diversity-aware selection;
-connector and LoRA-rank ablations. None are load-bearing for the result above.
+Not done: Stage C LoRA; diversity-aware selection; connector and LoRA-rank ablations; beam-search
+evaluation; multi-seed runs. None are load-bearing for the results above.

@@ -1,0 +1,21 @@
+# scripts.summarize, 10 MSR-VTT test clips (every 300th id), --scorer scorer --k 4, qaB (1 epoch)
+video7010.mp4  (54 frames, 17.7s, K=4 at [1.3s, 2.3s, 2.7s, 3.0s])
+  A man is talking about a song. Who: someone. Where: computer. How many: two.
+video7310.mp4  (48 frames, 15.7s, K=4 at [7.3s, 7.7s, 10.0s, 10.7s])
+  A man is dancing with a woman. Where: wedding. How many: three.
+video7610.mp4  (97 frames, 28.8s, K=4 at [18.3s, 21.0s, 21.3s, 25.8s])
+  A man is talking about the weight of a hammer. Where: place. What: text. How many: two.
+video7910.mp4  (39 frames, 12.7s, K=4 at [2.7s, 7.3s, 7.7s, 12.7s])
+  A man is showing a computer. How many: two.
+video8210.mp4  (69 frames, 21.8s, K=4 at [0.3s, 0.6s, 1.0s, 3.2s])
+  A man is talking about the russian president. Where: news. How many: two.
+video8510.mp4  (54 frames, 17.7s, K=4 at [4.7s, 6.7s, 8.7s, 13.3s])
+  A man is walking with a dog. Where: street. How many: two.
+video8810.mp4  (35 frames, 10.9s, K=4 at [3.8s, 4.2s, 4.5s, 4.8s])
+  A girl is singing on stage. Who: woman. How many: two.
+video9110.mp4  (45 frames, 14.7s, K=4 at [0.7s, 4.3s, 11.3s, 12.7s])
+  A man is talking about a news story. Who: woman. How many: two.
+video9410.mp4  (60 frames, 19.7s, K=4 at [2.3s, 2.7s, 3.0s, 3.3s])
+  A woman is showing a picture of a person. Where: computer. How many: two.
+video9710.mp4  (36 frames, 9.8s, K=4 at [2.8s, 3.1s, 3.4s, 3.6s])
+  A girl is singing on stage. How many: two.
