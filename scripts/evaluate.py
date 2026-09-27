@@ -107,7 +107,8 @@ def load_model(name, device):
         checkpoint.restore(m, ck, where=f"checkpoint '{name}'")
     except RuntimeError as e:
         raise SystemExit(str(e)) from None
-    return m, a
+    # task is saved beside arch, not inside it; every checkpoint predating QA is a captioner.
+    return m, {**a, "task": ck.get("task", "caption")}
 
 
 def run(model, dataset, recs, select, k, device, beam=1, limit_batches=None):

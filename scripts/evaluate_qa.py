@@ -9,6 +9,7 @@ one-word answers and not comparable to any published QA number.
 import argparse
 import json
 from collections import Counter
+from pathlib import Path
 
 import numpy as np
 import torch
@@ -19,6 +20,14 @@ from vidcap.data import cache_ns, load_split, uniform_indices
 from vidcap.decode import greedy
 from vidcap.encoder import cache_path
 from vidcap.metrics import qa_accuracy, qa_accuracy_by_type
+
+
+def spread(recs, n):
+    """n evenly spaced records, not the first n: qa_test.json is grouped by video, so its first
+    2,000 questions cover only 83 of the 2,990 test videos."""
+    if not n or n >= len(recs):
+        return recs
+    return [recs[i] for i in np.unique(np.linspace(0, len(recs) - 1, n).round().astype(int))]
 
 
 def answer(model, tok, recs, k, select, device, batch=16, max_new_tokens=6):
@@ -69,9 +78,11 @@ def main():
     args = ap.parse_args()
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    recs = load_split(args.dataset, args.split, args.root, args.limit)
+    recs = load_split(args.dataset, args.split, args.root)
     if not recs:
         raise SystemExit("no cached shards for this split — run scripts/fetch_qa.py")
+    recs = spread(recs, args.limit)
+    print(f"covering {len({r['video_id'] for r in recs})} videos")
     golds = [r["answer"] for r in recs]
     types = [r.get("answer_type", "") for r in recs]
     print(f"{len(recs)} {args.dataset}/{args.split} questions")
@@ -91,7 +102,16 @@ def main():
         selectors["learned"] = make_learned(args.scorer, device)
 
     results = {"dataset": args.dataset, "split": args.split, "n": len(recs),
-               "prior": prior, "curves": {}}
+               "n_videos": len({r["video_id"] for r in recs}), "prior": prior,
+               "prior_accuracy": qa_accuracy([prior] * len(golds), golds), "curves": {}}
+    p = Path(args.out) if args.out else OUT / f"evalqa_{args.dataset}_{args.split}.json"
+    p.parent.mkdir(parents=True, exist_ok=True)
+
+    def save():
+        # After EVERY arm: a 12h kill mid-sweep then keeps every arm already finished.
+        with open(p, "w") as f:
+            json.dump(results, f, indent=2)
+
     for name, sel in selectors.items():
         results["curves"][name] = {}
         for k in [int(b) for b in args.budgets.split(",")]:
@@ -102,11 +122,10 @@ def main():
                                           "by_type": {t: {"acc": a, "n": n} for t, (a, n) in by.items()}}
             detail = "  ".join(f"{t} {a:.3f}({n})" for t, (a, n) in by.items())
             print(f"{name:8s} K={k:<3d} acc {acc:.4f}   {detail}")
-            print(f"{'':8s}        e.g. {preds[0]!r} (gold {golds[0]!r})")
+            print(f"{'':8s}        e.g. {preds[0]!r} (gold {golds[0]!r})", flush=True)
+            save()
 
-    p = args.out or (OUT / f"evalqa_{args.dataset}_{args.split}.json")
-    with open(p, "w") as f:
-        json.dump(results, f, indent=2)
+    save()
     print(f"\nwrote {p}")
 
 

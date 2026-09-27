@@ -190,6 +190,16 @@ def test_evaluate_qa_groups_by_length():
     print(f"length grouping ok ({len(by_len)} groups, all uniform, none dropped)")
 
 
+def test_limit_spreads_across_videos():
+    """--limit on a video-grouped file must sample every video, not truncate to the first few."""
+    from scripts.evaluate_qa import spread
+    recs = [{"video_id": f"v{v}", "q": j} for v in range(100) for j in range(20)]
+    got = spread(recs, 200)
+    assert len(got) == 200 and len({r["video_id"] for r in got}) == 100, "limit truncated"
+    assert spread(recs, None) is recs and spread(recs, 10**6) is recs
+    print("limit spread ok (200 questions reach all 100 videos; truncation would reach 10)")
+
+
 def test_qa_accuracy():
     assert qa_accuracy(["man", "Dog."], ["man", "dog"]) == 1.0, "case/punctuation must not matter"
     assert qa_accuracy(["cat", "cat"], ["dog", "cat"]) == 0.5
@@ -253,6 +263,7 @@ if __name__ == "__main__":
     test_prompted_decode_strips_the_prompt_and_beam1_matches_greedy()
     test_padding_would_corrupt_answers_so_batches_must_be_uniform()
     test_evaluate_qa_groups_by_length()
+    test_limit_spreads_across_videos()
     test_qa_accuracy()
     test_summarize_composes_and_dedupes()
     test_overfits_a_few_qa_triples()

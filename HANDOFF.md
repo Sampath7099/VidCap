@@ -45,20 +45,23 @@ load-bearing.
 
 ## 3. The results (use these numbers)
 
-### Headline — MSR-VTT test, 500 clips, greedy. CIDEr-D
+### Headline — MSR-VTT test, FULL 2,990-clip split, greedy. CIDEr-D (run 2026-09-26)
 
 | K | uniform | motion | **learned** | oracle | learned − uniform | % of ceiling |
 |---|---|---|---|---|---|---|
-| 1 | 0.4495 | 0.4572 | **0.4977** | 0.5220 | **+0.0482** | **66%** |
-| 2 | 0.4893 | 0.4804 | **0.5107** | 0.5273 | +0.0214 | 56% |
-| 3 | 0.5246 | 0.5136 | **0.5270** | 0.5359 | +0.0024 | 21% |
-| 4 | 0.5397 | 0.5125 | 0.5302 | 0.5443 | −0.0095 | — |
+| 1 | 0.4371 | 0.4434 | **0.5004** | 0.5459 | **+0.0633** | **58%** |
+| 2 | 0.4930 | 0.4847 | **0.5154** | 0.5504 | +0.0225 | 39% |
+| 3 | 0.5197 | 0.4931 | **0.5226** | 0.5537 | +0.0029 | 8% |
+| 4 | 0.5301 | 0.5007 | 0.5270 | 0.5545 | −0.0031 | — |
 
-**learned K=1 (0.4977) > uniform K=2 (0.4893).** On BLEU-4 and ROUGE-L learned wins at every
-budget. Only 1 of 12 metric-budget cells is a loss (CIDEr at K=4), and measured run-to-run noise is
-**~0.007 CIDEr**, so that loss is marginal.
+**The K=1 gain (+0.063, ~9× noise) is the claim to lead with.** learned K=1 ≥ uniform K=2 on all
+three metrics, but on CIDEr the margin is +0.0074 — AT the ~0.007 noise floor. Say "one learned
+frame is worth two uniform ones", not "clearly beats". On BLEU-4 and ROUGE-L learned wins at every
+budget; only CIDEr at K=4 is a loss, and it is inside the noise.
 
-Raw numbers: [results/eval_msrvtt_test.json](results/eval_msrvtt_test.json).
+Raw numbers: [results/eval_full_test.json](results/eval_full_test.json). The older 500-clip run
+(K=1 +0.0482, 66%) is [results/eval_msrvtt_test.json](results/eval_msrvtt_test.json) — superseded,
+kept for history. Do not quote "66%" any more.
 
 ### Controls that make the above trustworthy
 
@@ -105,11 +108,13 @@ These were wrong at some point in this project's history and got corrected. Do n
    wall-clock. A real saving needs **two-tier selection** (cheap encoder scores the pool, expensive
    encoder runs on the selected K) — not implemented, and the best "what's next" answer.
 2. **"The scorer matches human judgement of importance."** FALSE — see §3.
-3. **"We beat published model X."** NOT ESTABLISHED. Current eval is 500 clips + greedy; published
-   MSR-VTT numbers use the full 2,990-clip test split, usually with beam search. Run the full split
-   (§6) before any comparison, and check the actual papers rather than trusting recalled numbers.
+3. **"We beat published model X."** NOT ESTABLISHED. The full split is now done, but greedy only;
+   published MSR-VTT numbers usually use beam search. Check the actual papers rather than trusting
+   recalled numbers before any comparison.
 4. **"TVSum is scored per 2-second shot."** FALSE. TVSum and SumMe are BOTH per-frame — verified,
    `len(scores) == frame_count` at ratio exactly 1.000.
+5. **"One learned frame clearly beats two uniform ones."** Too strong on the full split — the CIDEr
+   margin is +0.0074, at the noise floor. See §3.
 
 ---
 
@@ -135,32 +140,31 @@ one you are authenticated as before any CLI upload.
 
 ## 6. What to do next — in order
 
-### 6a. Full-split evaluation (~1–1.5 GPU-h) — highest value
+### 6a. Full-split evaluation — DONE 2026-09-26
 
-Makes the result comparable to published work. See §7 for the full Kaggle session.
+Results in §3, [results/eval_full_test.json](results/eval_full_test.json); README and
+`figures/budget_curves.png` updated. Wall-clock on a T4 including setup: roughly 4–5 h, not the
+1–1.5 h originally estimated.
 
-```bash
-python -m scripts.evaluate --ckpt stageB --scorer scorer --oracle --budgets 1,2,3,4
-```
-
-No `--limit` → all 2,990 test clips. Afterwards regenerate the figure:
-
-```bash
-python -m scripts.plot_curves out/eval_msrvtt_test.json figures/budget_curves.png
-```
-
-and update the README table and the `n=500` caption.
-
-### 6b. Q&A training (~2.5–3 GPU-h) — optional, gives Phase 2 a number
+### 6b. Q&A training — optional, gives Phase 2 a number. MUCH longer than first estimated
 
 ```bash
 python -m scripts.fetch_qa
-python -m scripts.train --stage B --task qa --init stageB --epochs 3
-python -m scripts.evaluate_qa --ckpt qaB --limit 2000
+python -m scripts.train --stage B --task qa --init stageB --epochs 1
+python -m scripts.evaluate_qa --ckpt qaB --scorer scorer --budgets 1,2,4 --limit 5000
+python -m scripts.summarize <clips...> --scorer scorer --k 4
 ```
 
+**Measured: 4,658 steps/epoch at ~4.26 s/step on a T4 ≈ 5.5 h per epoch.** The old "2.5–3 GPU-h
+for 3 epochs" estimate was wrong by ~7× (MSRVTT-QA has ~149k training questions vs 6.5k clips).
+3 epochs = ~16.5 h, which does not fit one 12 h Kaggle session — a first attempt timed out at
+40% and lost its checkpoint because checkpoints were written to `/tmp`. Run 1 epoch (loss was
+already ~1.0 in epoch 2), with `$VIDCAP_OUT/checkpoints` symlinked into `/kaggle/working` so a
+timeout keeps `qaB.pt` and a follow-up session can resume from it.
+
 `--init stageB` matters: it starts from the trained captioning connector. Published MSRVTT-QA
-accuracy for models in this class is roughly 35–45%; report whatever you get honestly.
+accuracy for models in this class is roughly 35–45%; report whatever you get honestly, and say
+"1 epoch".
 
 ### 6c. Optional, none load-bearing
 
@@ -170,77 +174,122 @@ best-by-val checkpointing (the shipped scorer is the last epoch, not the best �
 
 ---
 
-## 7. The Kaggle session (both jobs, one session, ~4.5 h)
+## 7. The Kaggle Q&A run (committed, unattended, ~7.5 h)
 
-**Settings:** Accelerator **GPU**, Internet **ON**.
-**Add Input:** your MSR-VTT embedding-cache dataset, and `vidcap-checkpoints` (must contain
-`stageB.pt` *and* `scorer.pt`).
+Run it as **Save Version → Save & Run All (Commit)**, not in the interactive editor: a commit runs
+on Kaggle's servers with the browser closed (12 h cap), an interactive session dies when idle.
+A `!cmd` that fails does NOT stop a notebook, so every command goes through `run()`, which raises.
 
-### Cell 1 — clone + env
+**Settings:** Accelerator **GPU** (T4 or P100; the code uses one GPU), Internet **ON**.
+**Add Input:** your MSR-VTT embedding-cache dataset (~10k `.npz` **plus `_captions.npz`**) and
+`vidcap-checkpoints` (`stageB.pt` and `scorer.pt`). To resume a timed-out run, also attach that version's output
+(it contains `checkpoints/qaB.pt`).
+
+Only `/kaggle/working` survives a commit, so working data goes in `/tmp` (otherwise 6 GB of video
+and the cache symlink get archived) and **checkpoints are symlinked into `/kaggle/working`** so a
+timeout keeps them — a previous run lost 7 h of Q&A training by checkpointing to `/tmp`.
+
+### Cell 1 — code, paths, helper
 
 ```python
-!rm -rf /kaggle/working/VidCap
-!git clone -q https://github.com/Sampath7099/VidCap.git /kaggle/working/VidCap
-%cd /kaggle/working/VidCap
-import os
-os.environ["VIDCAP_DATA"] = "/kaggle/working/data"
-os.environ["VIDCAP_OUT"] = "/kaggle/working"
-!git log --oneline -1
-```
+import os, sys, time, json, shutil, subprocess, pathlib
 
-`VIDCAP_DATA` / `VIDCAP_OUT` must be set **before** importing anything from `vidcap` —
-`config.py` reads them at import time, and subprocesses otherwise fall back to `/kaggle/input`.
+!rm -rf /tmp/VidCap
+!git clone -q https://github.com/Sampath7099/VidCap.git /tmp/VidCap
+%cd /tmp/VidCap
+assert pathlib.Path("scripts/evaluate.py").exists(), "clone failed"
+
+# Must be set before anything imports vidcap (config.py reads them at import time).
+os.environ["VIDCAP_DATA"] = "/tmp/vidcap_data"
+os.environ["VIDCAP_OUT"]  = "/tmp/vidcap_out"
+DATA = pathlib.Path("/tmp/vidcap_data")
+OUT  = pathlib.Path("/tmp/vidcap_out")
+SAVE = pathlib.Path("/kaggle/working/results")
+SAVE.mkdir(parents=True, exist_ok=True)
+
+def run(cmd):
+    """Run a shell command, stream its output, and FAIL the notebook if it fails."""
+    t = time.time(); print(f"$ {cmd}", flush=True)
+    p = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE,
+                         stderr=subprocess.STDOUT, text=True)
+    for line in p.stdout:
+        print(line, end="", flush=True)
+    if p.wait():
+        raise RuntimeError(f"exit {p.returncode}: {cmd}")
+    print(f"[done in {(time.time()-t)/60:.1f} min]", flush=True)
+
+run("git log --oneline -1")
+run("nvidia-smi --query-gpu=name,memory.total --format=csv")
+```
 
 ### Cell 2 — videos, cache, checkpoints (~20 min)
 
 ```python
-!mkdir -p /kaggle/working/data /kaggle/working/checkpoints /kaggle/working/cache
-!wget -q https://www.robots.ox.ac.uk/~maxbain/frozen-in-time/data/MSRVTT.zip -O /tmp/MSRVTT.zip
-!unzip -q -o /tmp/MSRVTT.zip -d /kaggle/working/data/msrvtt && rm /tmp/MSRVTT.zip
+for d in (DATA, OUT / "cache"):
+    d.mkdir(parents=True, exist_ok=True)
 
-import pathlib, shutil, os
+run("wget -q --timeout=60 --tries=5 https://www.robots.ox.ac.uk/~maxbain/frozen-in-time/data/MSRVTT.zip -O /tmp/MSRVTT.zip")
+run(f"unzip -q -o /tmp/MSRVTT.zip -d {DATA}/msrvtt && rm /tmp/MSRVTT.zip")
+n_vid = sum(1 for _ in (DATA / "msrvtt").rglob("*.mp4"))
+print("videos:", n_vid); assert n_vid >= 9900, "MSR-VTT videos missing"
+
 root = pathlib.Path("/kaggle/input")
+caps = list(root.rglob("_captions.npz"))
+assert len(caps) == 1, f"need exactly one _captions.npz in inputs, found: {caps}"
+link = OUT / "cache" / "msrvtt"
+if link.is_symlink() or link.exists():
+    link.unlink()
+link.symlink_to(caps[0].parent); assert link.exists(), "dangling cache symlink"
+n_npz = sum(1 for _ in link.glob("*.npz"))
+print("cache:", caps[0].parent, "shards:", n_npz); assert n_npz >= 9900
 
-cache_src = next(p for p in root.rglob("*/msrvtt") if p.is_dir() and any(p.glob("*.npz")))
-link = pathlib.Path("/kaggle/working/cache/msrvtt")
-if link.is_symlink() or link.exists(): link.unlink()
-link.symlink_to(cache_src)
-
-for pt in root.rglob("*vidcap*/**/*.pt"):
-    shutil.copy(pt, "/kaggle/working/checkpoints/")
-
-have = os.listdir("/kaggle/working/checkpoints")
-print("cache shards:", len(list(link.glob("*.npz"))))      # expect ~10000
-print("captions npz:", (link / "_captions.npz").exists())  # must be True for --oracle
-print("checkpoints:", have)
-assert "stageB.pt" in have and "scorer.pt" in have, "missing checkpoint"
+KEEP = pathlib.Path("/kaggle/working/checkpoints"); KEEP.mkdir(exist_ok=True)
+ck = OUT / "checkpoints"
+if ck.is_symlink():
+    ck.unlink()
+elif ck.exists():
+    shutil.rmtree(ck)
+ck.symlink_to(KEEP); assert ck.exists()
+for name in ("stageB.pt", "scorer.pt", "qaB.pt"):   # qaB.pt only when resuming
+    hits = list(root.rglob(name))
+    if hits:
+        shutil.copy(hits[0], KEEP / name)
+assert (KEEP / "stageB.pt").exists(), "stageB.pt not found — is vidcap-checkpoints attached?"
+print("checkpoints:", os.listdir(KEEP))
 ```
 
-All four checks must pass before continuing.
-
-### Cells 3–8
+### Cells 3–5
 
 ```python
-# Cell 3 — full-split eval (~1-1.5 GPU-h)
-!python -m scripts.evaluate --ckpt stageB --scorer scorer --oracle --budgets 1,2,3,4
+# Cell 3 — QA annotations (~40 MB)
+run("python -m scripts.fetch_qa")
 
-# Cell 4 — save it IMMEDIATELY, do not wait for the session to end
-!cp /kaggle/working/eval_msrvtt_test.json /kaggle/working/eval_full_test.json
+# Cell 4 — QA training, 1 epoch (~5.5 h at 4.26 s/step; resumes from qaB.pt if present)
+run("python -m scripts.train --stage B --task qa --init stageB --epochs 1")
 
-# Cell 5 — QA annotations (~40MB)
-!python -m scripts.fetch_qa
+# Cell 5 — QA eval (~1.5 h): 5,000 questions spread over all 2,990 test videos,
+# uniform / motion / learned selection at K=1,2,4. Writes straight into SAVE after every arm.
+run(f"python -m scripts.evaluate_qa --ckpt qaB --scorer scorer --budgets 1,2,4 --limit 5000 "
+    f"--out {SAVE}/evalqa_msrvtt_qa_test.json")
 
-# Cell 6 — QA training (~2-2.5 GPU-h)
-!python -m scripts.train --stage B --task qa --init stageB --epochs 3
-
-# Cell 7 — QA eval (~20 min)
-!python -m scripts.evaluate_qa --ckpt qaB --limit 2000
-
-# Cell 8 — save everything
-!cd /kaggle/working && zip -qr session_results.zip checkpoints/qaB.pt eval_full_test.json
+# Cell 6 — composed summaries on 10 test clips (qualitative, no metric; ~10 min)
+vids = sorted((DATA / "msrvtt").rglob("video*.mp4"), key=lambda p: int(p.stem[5:]))
+picks = [str(p) for p in vids if int(p.stem[5:]) in range(7010, 10000, 300)]
+run(f"python -m scripts.summarize {' '.join(picks)} --scorer scorer --k 4 "
+    f"> {SAVE}/summaries.txt 2>&1")
+print(open(SAVE / "summaries.txt").read())
+print("ALL DONE:", os.listdir(SAVE))
 ```
 
-Eval runs before QA deliberately: if the session dies you keep the number that matters.
+`--limit` samples evenly: `qa_test.json` is grouped by video, and its first 2,000 questions cover
+only 83 of the 2,990 test videos (fixed 2026-09-27; `spread()` in `evaluate_qa.py`).
+
+Afterwards: version → **Output** tab → download `results/`, and **New Dataset** from the output so
+`qaB.pt` persists.
+
+The caption evaluation used the same Cells 1–2 plus
+`run("python -m scripts.evaluate --ckpt stageB --scorer scorer --oracle --budgets 1,2,3,4")`
+(needs `scorer.pt`). It is done — do not rerun it.
 
 ### For the TVSum/SumMe validation instead
 
@@ -291,7 +340,7 @@ cd VidCap
 
 Then unzip `vidcap_gobag.zip` into the repo root.
 
-**Nothing remaining requires Linux.** Both outstanding jobs run on Kaggle in a browser.
+**Nothing remaining requires Linux.** The one outstanding job (Q&A) runs on Kaggle in a browser.
 
 **If you want the Linux workflow back**, install **WSL2** and clone inside it. That avoids the
 permissions/symlink/line-ending problems that appear when a git tree lives on NTFS. Do **not** put
@@ -303,11 +352,15 @@ do not translate, and CRLF breaks shell scripts.
 The existing arrangement — code on GitHub, data on Kaggle — already is the cross-platform solution.
 An exFAT USB drive covers bulk files if needed. **Share data, never code.**
 
+**Local Python (set up 2026-09-26):** Python 3.12 is installed per-user and the repo has a
+`.venv/` (CPU torch, requirements, matplotlib, pycocoevalcap). All 8 test files pass there. Use
+`.venv\Scripts\python.exe` directly — bare `python` is the Microsoft Store stub. transformers 5
+needs `protobuf` (now in requirements.txt; Kaggle preinstalls it).
+
 **Local inference (optional):**
 
 ```bash
-pip install -r requirements.txt
-python -m scripts.caption yourclip.mp4 --k 2 --select learned,uniform
+.venv\Scripts\python.exe -m scripts.caption yourclip.mp4 --k 2 --select learned,uniform
 ```
 
 Needs `out/checkpoints/stageB.pt` and `scorer.pt`, plus ~10 GB free RAM for both models in fp32.
@@ -405,8 +458,9 @@ training targets: `out/cache/<dataset>/_captions.npz`.
 > "Every video captioning pipeline samples frames uniformly. I asked whether that leaves
 > performance on the table, and built the controls to answer it properly — a blind baseline to
 > prove the model uses vision at all, an oracle to bound how much headroom exists, and a measured
-> noise floor so I know which differences are real. One learned frame beats two uniform ones,
-> recovering 66% of the achievable headroom. I also tested it against human importance labels,
+> noise floor so I know which differences are real. On the full MSR-VTT test split, choosing the
+> single frame well adds +0.063 CIDEr — about nine times the noise — recovers 58% of the
+> achievable headroom, and makes one frame worth two uniform ones. I also tested it against human importance labels,
 > where it *doesn't* hold up — so the scorer predicts caption-relevance, not human importance, and
 > I can tell you the difference."
 

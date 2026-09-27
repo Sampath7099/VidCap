@@ -712,3 +712,62 @@ interesting one than either arm alone.
 2. Shot-aware / diversity-aware selection and training the scorer on longer multi-shot video are
    now motivated by a measured failure rather than speculation. Both optional; neither gates the
    MSR-VTT result.
+
+## Full-split evaluation (2026-09-26)
+
+Kaggle committed run, T4, latest container image. `evaluate --ckpt stageB --scorer scorer --oracle
+--budgets 1,2,3,4`, no `--limit` → **n=2990**, greedy. Raw: `results/eval_full_test.json`.
+
+| K | uniform | motion | learned | oracle | l − u | % ceiling |
+|---|---|---|---|---|---|---|
+| 1 | 0.4371 | 0.4434 | 0.5004 | 0.5459 | +0.0633 | 58% |
+| 2 | 0.4930 | 0.4847 | 0.5154 | 0.5504 | +0.0225 | 39% |
+| 3 | 0.5197 | 0.4931 | 0.5226 | 0.5537 | +0.0029 | 8% |
+| 4 | 0.5301 | 0.5007 | 0.5270 | 0.5545 | −0.0031 | — |
+
+BLEU-4 l−u: +0.0425 / +0.0198 / +0.0078 / +0.0070. ROUGE-L: +0.0240 / +0.0112 / +0.0048 / +0.0027.
+Learned wins every BLEU/ROUGE cell; CIDEr K=4 is the only loss and is inside noise.
+
+What changed vs the 500-clip run:
+- The K=1 gain got **bigger** (+0.048 → +0.063), but uniform K=1 dropped and the oracle rose, so
+  the ceiling widened and % recovered fell (66% → 58%). Both numbers are honest; cite 58% now.
+- **learned K=1 vs uniform K=2 on CIDEr: 0.5004 vs 0.4930, +0.0074 — at the ~0.007 noise floor.**
+  The old "learned K=1 > uniform K=2" was +0.0084 on 500 clips, also near the floor; it was stated
+  too strongly. Reworded to "one learned frame is worth two uniform ones". On BLEU-4 the K=1-vs-K=2
+  margin is +0.012, on ROUGE-L +0.007.
+- Motion is worse than uniform at every K≥2 on the full split (a null or worse, as before).
+
+README table, figure (`figures/budget_curves.png`, n=2990) and HANDOFF §3/§6/§12 updated.
+
+### Q&A training attempt — timed out, estimate was wrong
+
+Same committed run continued into `train --stage B --task qa --init stageB --epochs 3` and hit
+Kaggle's 12 h cap at step 5575/13974 (ep 1, loss ~1.0). **4.26 s/step, 4,658 steps/epoch ≈ 5.5 h
+per epoch; 3 epochs ≈ 16.5 h.** HANDOFF's "2–2.5 GPU-h" was wrong by ~7× — MSRVTT-QA has ~149k
+training questions vs 6.5k captioning clips. The partial `qaB.pt` was lost: the notebook set
+`VIDCAP_OUT=/tmp/vidcap_out` to keep the video and cache out of the committed output, which also put
+checkpoints outside `/kaggle/working`. Fix (HANDOFF §7): symlink `$VIDCAP_OUT/checkpoints` into
+`/kaggle/working`, and run `--epochs 1`.
+
+### Local Windows environment (2026-09-26)
+
+Python 3.12.10 (per-user, winget) + `.venv/` with CPU torch 2.14, transformers 5.17. All 8 test
+files and `validate_metrics` pass. transformers 5 requires `protobuf` for `SiglipTokenizer`; it was
+never listed because Kaggle preinstalls it — added to requirements.txt.
+
+## Q&A pre-flight fixes (2026-09-27)
+
+Checked the Phase 2 path before spending ~7.5 GPU-h on it. MSRVTT-QA annotations verified locally:
+train 149,075 q / 6,513 videos; val 12,278 / 497; test 72,821 / 2,990. Answer types: what 49,869,
+who 20,385, how 1,640, when 677, where 250. Most common test answer "man" (7,102 = 9.8%) — that is
+the answer-prior floor any accuracy must clear.
+
+1. **`evaluate_qa --limit` truncated a video-grouped file.** The first 2,000 test questions cover
+   only **83 of 2,990** videos, so the planned `--limit 2000` would have measured ~80 clips.
+   `spread()` now takes evenly spaced questions (5,000 → every video). Gated in `test_qa.py`.
+2. **`evaluate_qa` wrote its JSON only at the end.** Now saves after every (selector, K) arm.
+3. **`load_model` dropped `task`.** It lives beside `arch` in the checkpoint, not inside it, so
+   `summarize.py` would have warned that every QA checkpoint was task='unknown'. Now returned.
+
+Planned eval: `--scorer scorer --budgets 1,2,4 --limit 5000` — the same uniform/motion/learned
+comparison as captioning, on a second task. Summaries on 10 test clips, qualitative only.
