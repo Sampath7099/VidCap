@@ -152,6 +152,40 @@ The captions are reasonable and some facts add real information ("wedding", "str
 answers like "Where: place" carry nothing. MSR-VTT has no multi-sentence ground truth, so there is
 no metric here. Treat it as a demo of composing the two models, not as a validated summariser.
 
+## Watch a video: timeline, summary, questions
+
+`scripts/watch.py` puts the pieces together for videos longer than one MSR-VTT clip:
+
+```bash
+python3 -m scripts.watch myvideo.mp4
+```
+
+1. **Scenes.** The SigLIP frame embeddings already computed for selection also find scene cuts:
+   a jump in frame-to-frame distance well above the video's typical change. Scenes are kept to
+   3–15 s, the clip length the captioner was trained on. On the 75 TVSum/SumMe videos this gives
+   13–19 scenes for a ~3-minute video, median ~13 s each.
+2. **Timeline.** Each scene is captioned from the frames the **learned selector** picks (K=2,
+   where selection helps most), and repeated captions merge into one event.
+3. **Summary.** The frozen Qwen2.5-1.5B-*Instruct* decoder, used as a plain text model, turns
+   the timeline into a few sentences. No extra model, no extra training.
+4. **Questions**, answered two ways, both shown:
+   - *frames* — the Q&A adapter answers from the scene whose frames best match the question in
+     SigLIP space. One-word answers, the MSRVTT-QA style it was trained on.
+   - *timeline* — Qwen answers over the timeline, for "what happens after…" style questions.
+     The time range is attached in code by matching the answer to its source caption, because
+     the 1.5B model copies time ranges unreliably when asked to cite them.
+
+The two tasks share one frozen Qwen and swap only the 62M adapter between captioning and Q&A, so
+the whole thing fits in ~10 GB of RAM on a CPU.
+
+What to expect — measured on hand-written timelines with the real Qwen2.5-1.5B: summaries are
+faithful and in order, with occasional small embellishments ("dives *to prevent a goal*"); the
+timeline answerer got 7 of 9 answerable questions right with the correct time, and said
+"not in the video" to both unanswerable ones — but also to 2 answerable ones ("what happens at
+the end?", "what does the goalkeeper do?"). That is a small hand check, not a benchmark. The summary can only be as specific as the captions, and MSR-VTT captions are
+generic ("a man is talking"). There is no metric for the summaries yet; ActivityNet Captions,
+which has paragraph descriptions of long videos, would be the way to add one.
+
 ## What this does NOT buy you (yet)
 
 A lower frame budget is **not** a speedup in this implementation, and it is worth being precise
@@ -237,11 +271,14 @@ frozen SigLIP vision encoder, frozen Qwen2.5-1.5B decoder, PyTorch, OpenCV for d
 ```bash
 pip install -r requirements.txt
 python3 -m scripts.caption yourclip.mp4 --k 2 --select learned,uniform
-python3 -m scripts.summarize yourclip.mp4 --scorer scorer --ask "what is the man holding?"
+python3 -m scripts.watch yourvideo.mp4 --ask "what is the man holding?" --json out.json
 ```
 
-Runs on CPU (~1–2 min/clip; needs ~10 GB RAM for both models in fp32). Add `--select
-learned,uniform,motion` to compare all three, `--beam 4` for better decoding.
+Runs on CPU with ~10 GB RAM. `caption` takes ~1–2 min/clip. `watch` is slower: SigLIP costs
+~3 s/frame on CPU and the pool is capped at 128 frames (`--max-frames`), so a 30 s video takes
+a few minutes and a long one up to ~10. Needs `out/checkpoints/stageB.pt` and `scorer.pt`;
+`qaB.pt` adds the frame-based answers. Add `--select learned,uniform,motion` to `caption` to
+compare selectors, `--beam 4` for better decoding.
 
 Reproducing the numbers needs the cached embeddings and a GPU:
 
@@ -279,7 +316,8 @@ python3 -m scripts.plot_curves out/eval_msrvtt_test.json figures/budget_curves.p
 
 Done: embedding cache, connector training, blind control, oracle ceiling, frame scorer, four-arm
 budget curves on the full test split, TVSum/SumMe human-importance validation, video Q&A (1 epoch,
-three-selector comparison), composed summaries, end-to-end demo.
+three-selector comparison), composed summaries, end-to-end demo, `watch` (scene timeline,
+summary and two-source Q&A for longer videos).
 
 Not done: Stage C LoRA; diversity-aware selection; connector and LoRA-rank ablations; beam-search
 evaluation; multi-seed runs. None are load-bearing for the results above.

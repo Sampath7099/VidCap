@@ -797,3 +797,31 @@ plausible, some facts informative (wedding, street), but "How many: two" in 9/10
 — and "Where: place"-style empties. Qualitative only; no metric exists for it on MSR-VTT.
 
 `qaB.pt` was NOT in the downloaded zip (only `results/`); it lives in the Kaggle version output.
+
+## `scripts/watch.py` — timeline, summary and Q&A for longer videos (2026-09-27)
+
+Goal set by the user: read a video, summarise what happened, answer questions about it — an
+add-on over the frame selector. No new training; everything reuses stageB, qaB, the scorer and the
+frozen Qwen2.5-1.5B-Instruct.
+
+- `vidcap/timeline.py`: `segment()` cuts where the raw cosine distance between consecutive SigLIP
+  frames exceeds max(mean + 2 std, 3 x median), keeps scenes >= 3 s, splits any > 15 s. The median
+  guard was added after a test showed mean + 2 std alone always cuts a static shot on noise.
+  Mean-centring was tried and rejected: it lowered the p99/median peak ratio 7.8x -> 5.2x on TVSum.
+  On the 75 cached TVSum/SumMe videos: median 19 / 13 scenes per video, scenes 3-17 s, full
+  coverage, no gaps. `merge_repeats()` joins adjacent identical captions.
+- Summary: Qwen-Instruct over the timeline text. One event is returned verbatim (no LLM).
+- Q&A: (a) frames — the scene holding the frame most similar to the question in SigLIP space,
+  answered by the qaB adapter; (b) timeline — Qwen over the timeline.
+  Prompt tuning on real Qwen, two hand-made timelines: asking it to cite times gave wrong ranges;
+  numbering events was worse; a worked example + time attached in code (`source_event`, caption
+  word overlap) gave 7/9 answerable correct, 2/2 unanswerable refused, 2 answerable wrongly
+  refused. It still writes its own (wrong) times, so they are stripped by regex.
+- Memory: both tasks share one Qwen; `adapter()` swaps only the trainable state (restored even
+  on error). ~10 GB on CPU with SigLIP loaded.
+- Smoke test on a synthetic 3-scene 30 s video with random-weight stand-in checkpoints: cuts at
+  10.8 s / 20.7 s (true 10 / 20), question routed to the right scene, JSON written; 8 min on CPU
+  including model loads. Not yet run with the real stageB/qaB — they are not on this laptop.
+
+Summary quality is bounded by MSR-VTT captions (generic) and a 1.5B text model (small
+embellishments). No metric; ActivityNet Captions paragraphs would be the way to add one.

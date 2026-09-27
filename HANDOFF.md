@@ -40,6 +40,8 @@ frozen Qwen2.5-1.5B decoder joined by ~62M from-scratch parameters, plus a 0.72M
 floor 0.100. Same shape as captioning: learned helps at K=1, gone by K=4. Raw:
 [results/evalqa_msrvtt_qa_test.json](results/evalqa_msrvtt_qa_test.json).
 
+**`scripts/watch.py`** (2026-09-27) — video in → scene timeline (learned selector per scene) → Qwen-Instruct summary → questions answered from frames (qaB) and from the timeline. Tested with unit gates and a synthetic-video smoke run; not yet run with the real checkpoints. Needs `stageB.pt` + `scorer.pt` (+ `qaB.pt`) in `out/checkpoints/`. Details and limits: README "Watch a video" and context.md.
+
 **Composed summaries** (`scripts/summarize.py`) — qualitative only, and weak: "How many: two" in
 9 of 10 outputs is the answer prior. [results/summaries.txt](results/summaries.txt). Do not
 present the summariser as validated.
