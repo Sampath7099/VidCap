@@ -1,6 +1,7 @@
 torch>=2.0
 transformers>=4.45
 sentencepiece      # SigLIP's tokenizer needs this; transformers does not pull it in
+protobuf           # transformers 5 SiglipTokenizer needs it; preinstalled on Kaggle
 opencv-python      # frame extraction
 numpy
 tqdm               # progress + ETA; preinstalled on Kaggle

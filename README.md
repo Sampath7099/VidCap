@@ -5,31 +5,41 @@ samples frames uniformly: every Nth frame, regardless of what is in them. This p
 lightweight **frame-relevance scorer** that picks the informative frames instead, and measures
 whether that actually helps.
 
-**It does. One learned frame beats two uniformly-spaced ones.**
+**It does. At a one-frame budget the learned choice lifts CIDEr-D by +0.063 (+14%), and one
+learned frame is worth two uniformly-spaced ones.**
 
 ![quality vs frame budget](figures/budget_curves.png)
 
 ## Headline result
 
-MSR-VTT test, 500 clips, greedy decoding. CIDEr-D:
+MSR-VTT test, **full 2,990-clip split**, greedy decoding. CIDEr-D:
 
 | K | uniform | motion | **learned** | oracle | learned − uniform | % of ceiling |
 |---|---|---|---|---|---|---|
-| 1 | 0.4495 | 0.4572 | **0.4977** | 0.5220 | **+0.0482** | **66%** |
-| 2 | 0.4893 | 0.4804 | **0.5107** | 0.5273 | +0.0214 | 56% |
-| 3 | 0.5246 | 0.5136 | **0.5270** | 0.5359 | +0.0024 | 21% |
-| 4 | 0.5397 | 0.5125 | 0.5302 | 0.5443 | −0.0095 | — |
+| 1 | 0.4371 | 0.4434 | **0.5004** | 0.5459 | **+0.0633** | **58%** |
+| 2 | 0.4930 | 0.4847 | **0.5154** | 0.5504 | +0.0225 | 39% |
+| 3 | 0.5197 | 0.4931 | **0.5226** | 0.5537 | +0.0029 | 8% |
+| 4 | 0.5301 | 0.5007 | 0.5270 | 0.5545 | −0.0031 | — |
 
-**learned K=1 (0.4977) > uniform K=2 (0.4893)** — one well-chosen frame carries more
-caption-relevant information than two evenly-spaced ones, recovering 66% of the oracle ceiling
-without ever seeing a caption at inference.
+The gain at K=1 is **+0.063 CIDEr-D, about 9× the measured noise floor**, recovering 58% of the
+oracle ceiling without ever seeing a caption at inference.
+
+**learned K=1 ≥ uniform K=2** on every metric: CIDEr-D 0.5004 vs 0.4930, BLEU-4 0.3943 vs 0.3823,
+ROUGE-L 0.6116 vs 0.6048. On CIDEr that margin (+0.007) sits at the noise floor, so the defensible
+reading is *one learned frame is worth two uniform ones*, not *clearly beats* them. On BLEU-4 the
+margin is larger (+0.012).
+
+An earlier 500-clip run gave the same shape (K=1: +0.048, 66% of ceiling; raw numbers in
+[results/eval_msrvtt_test.json](results/eval_msrvtt_test.json)). The full split is the number to
+cite: [results/eval_full_test.json](results/eval_full_test.json).
 
 This is a claim about *information per frame*, not about wall-clock cost — see
 [What this does NOT buy you](#what-this-does-not-buy-you-yet) before reading it as a speedup.
 
 On **BLEU-4 and ROUGE-L the learned selector wins at every budget**. Only 1 of 12 metric-budget
-cells is a loss (CIDEr at K=4, −0.0095) — and measured run-to-run noise between two independent
-scorer trainings is ~0.007, so that loss is marginal, not decisive.
+cells is a loss (CIDEr at K=4, −0.0031) — and measured run-to-run noise between two independent
+scorer trainings is ~0.007, so that loss is inside the noise: at K≥3 learned and uniform are tied
+on CIDEr.
 
 The four arms:
 - **uniform** — evenly spaced frames. The industry default, and the thing to beat.
@@ -191,7 +201,7 @@ python3 -m scripts.build_cache --dataset msrvtt        # Stage 0, ~8.5 GPU-h
 python3 -m scripts.train --stage B                     # connector + projector
 python3 -m scripts.train_scorer --epochs 3             # Stage A, ~12 min
 python3 -m scripts.evaluate --ckpt stageB --scorer scorer --oracle --budgets 1,2,3,4
-python3 -m scripts.plot_curves out/eval_msrvtt_test.json figures/budget_curves.png
+python3 -m scripts.plot_curves out/eval_msrvtt_test.json figures/budget_curves.png   # no --limit: full split
 ```
 
 `./run_tests.sh` runs every gate, including the metric-equivalence check against `pycocoevalcap`.
@@ -206,13 +216,15 @@ python3 -m scripts.plot_curves out/eval_msrvtt_test.json figures/budget_curves.p
    human labels. The captioning result stands on its own evidence, but "the scorer finds the
    frames humans consider important" is **not** a claim this project supports.
 3. **Noise floor ~0.007 CIDEr**, measured across two independent scorer trainings. Any claim
-   resting on a gap under ~0.01 needs more seeds. The K=4 loss is inside that zone.
+   resting on a gap under ~0.01 needs more seeds. The K=4 loss and the CIDEr margin of learned
+   K=1 over uniform K=2 are both inside that zone.
 4. **MSR-VTT saturates at K=4.** 15-second single-shot clips are frame-redundant; four evenly
    spaced frames already give the model everything it can use. The result lives at K=1–2, and the
    originally-planned 2/4/8/16 sweep would have measured nothing at all.
 5. **The shipped scorer is the last epoch, not the best.** Checkpointing overwrites each epoch, so
    the headline was produced by a slightly worse-than-best scorer — the result is *understated*.
-6. **500 test clips, greedy decode.** Not the full 2,990-clip test split.
+6. **Greedy decode, one scorer seed.** The headline uses the full 2,990-clip test split, but
+   published MSR-VTT numbers usually use beam search, and this is not a comparison against them.
 
 ## Status
 
