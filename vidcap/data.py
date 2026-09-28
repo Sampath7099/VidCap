@@ -88,7 +88,7 @@ class VideoCaptionDataset(Dataset):
         caps = r["captions"] or [""]
         # Module-level random, not self.rng: DataLoader copies the dataset into each worker,
         # so a seeded Random() gives every worker the same stream and the "different caption
-        # per epoch" augmentation — context.md's main defence against overfitting a thin
+        # per epoch" augmentation — the main defence against overfitting a thin
         # dataset — never actually varied. DataLoader reseeds `random` per worker per epoch.
         cap = random.choice(caps) if self.train else caps[0]
         return frames, cap

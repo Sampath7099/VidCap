@@ -6,3 +6,5 @@ opencv-python      # frame extraction
 numpy
 tqdm               # progress + ETA; preinstalled on Kaggle
 scipy              # SumMe GT/*.mat
+matplotlib         # scripts/plot_curves.py
+gradio             # app.py

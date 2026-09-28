@@ -1,4 +1,4 @@
-"""Video in, caption out — the end-to-end usability gate (context.md requirement #1).
+"""Video in, caption out — the end-to-end demo.
 
   python -m scripts.caption clip.mp4
   python -m scripts.caption clip.mp4 --k 1 --select learned,uniform     # side-by-side

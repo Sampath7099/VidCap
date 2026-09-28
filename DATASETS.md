@@ -50,5 +50,5 @@ unzip -q    iitp-summe-tvsum.zip "GT/*"        -d ../summe/
 ```
 
 Yields `tvsum/` 50 videos + anno TSV (664 MB) and `summe/` 25 videos + 25 `GT/*.mat` (1.5 GB).
-Both loaders parse these unmodified — no fixes were needed, contrary to the expectation recorded
-in context.md. Skip the `.webm` copies in `videos/`; they duplicate the `.mp4`s.
+Both loaders parse these unmodified — no fixes were needed.
+Skip the `.webm` copies in `videos/`; they duplicate the `.mp4`s.

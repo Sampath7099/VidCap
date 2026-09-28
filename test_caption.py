@@ -1,4 +1,4 @@
-"""End-to-end demo gates (context.md requirement #1): python test_caption.py"""
+"""End-to-end demo gates: python test_caption.py"""
 import os
 import pathlib
 import tempfile
