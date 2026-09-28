@@ -2,6 +2,7 @@
 
   python -m scripts.watch clip.mp4                         # timeline + summary, then ask away
   python -m scripts.watch clip.mp4 --ask "what is the man holding?" --json out.json
+  python -m scripts.watch clip.mp4 --budget 8          # 8 frames for the whole video, in pairs
 
 Each scene is captioned from frames the learned selector picks. The frozen Qwen2.5-Instruct
 decoder, used as a plain text model, writes the summary and answers questions over the timeline;
@@ -19,11 +20,14 @@ import numpy as np
 import torch
 
 from scripts.caption import caption_from_pool
-from scripts.evaluate import load_model, make_learned, uniform_sel
+from scripts.evaluate import load_model, make_learned, make_learned_scores, uniform_sel
 from scripts.summarize import ask
 from vidcap import checkpoint
+from vidcap.data import uniform_indices
+from vidcap.decode import greedy
 from vidcap.encoder import embed_images, embed_texts, load_vision, normalize
-from vidcap.timeline import fmt_time, merge_repeats, segment, source_event, timeline_text
+from vidcap.timeline import (fmt_time, merge_repeats, pair_frames, segment, segment_best,
+                             source_event, timeline_text)
 from vidcap.video import sample_frames
 
 SUMMARY_PROMPT = (
@@ -53,6 +57,20 @@ def build_timeline(emb, times, model, selector, k, device):
         events.append({"start": float(times[s]), "end": end, "caption": " ".join(cap.split()),
                        "frames": sorted({s + int(i) for i in idx}), "range": [s, e]})
     return merge_repeats(events)
+
+
+def build_budget_timeline(emb, times, model, idx, device):
+    """One caption per time-ordered pair of the budget frames. Each event runs from its pair to
+    the next, so events still tile the video for question routing."""
+    pairs = pair_frames(sorted(set(int(i) for i in idx)))
+    f = torch.from_numpy(np.ascontiguousarray(np.stack([emb[p] for p in pairs]))).float().to(device)
+    caps = greedy(model, f)
+    starts = [0] + [p[0] for p in pairs[1:]]
+    ends = starts[1:] + [len(emb)]
+    return merge_repeats([
+        {"start": float(times[a]), "end": float(times[b]) if b < len(times) else float(times[-1]),
+         "caption": " ".join(c.split()), "frames": sorted(set(p)), "range": [a, b]}
+        for p, c, a, b in zip(pairs, caps, starts, ends)])
 
 
 @torch.no_grad()
@@ -129,6 +147,11 @@ def main():
     ap.add_argument("--qa-ckpt", default="qaB", help="Q&A checkpoint; frame answers skipped if absent")
     ap.add_argument("--scorer", default="scorer", help="frame scorer; 'none' for uniform frames")
     ap.add_argument("--k", type=int, default=2, help="frames per scene (learned wins most at 1-2)")
+    ap.add_argument("--budget", type=int, default=0,
+                    help="K frames for the WHOLE video instead of scenes; 8 was the best measured "
+                         "long-video setting on ActivityNet")
+    ap.add_argument("--budget-select", choices=("uniform", "seg-learned"), default="uniform",
+                    help="how --budget picks frames: evenly spaced, or the scorer's best per slice")
     ap.add_argument("--fps", type=float, default=1.0, help="candidate-pool density")
     ap.add_argument("--max-frames", type=int, default=128,
                     help="pool cap; SigLIP is ~3 s/frame on CPU, so this bounds the wait")
@@ -160,7 +183,12 @@ def main():
     emb = embed_images(vis, proc, device, frames)
     del frames
 
-    events = build_timeline(emb, times, model, selector, args.k, device)
+    if args.budget:
+        idx = (uniform_indices(len(emb), args.budget) if args.budget_select == "uniform" else
+               segment_best(make_learned_scores(args.scorer, device)(emb), args.budget))
+        events = build_budget_timeline(emb, times, model, idx, device)
+    else:
+        events = build_timeline(emb, times, model, selector, args.k, device)
     print(f"\nTimeline ({len(events)} events)\n{timeline_text(events)}")
     summary = summarize_timeline(model, events)
     print(f"\nSummary\n  {summary}\n\n[{time.time() - t0:.0f}s]")

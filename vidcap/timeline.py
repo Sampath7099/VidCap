@@ -1,6 +1,7 @@
 """Long video -> scenes -> timeline of captioned events. Pure logic; no models live here."""
 import numpy as np
 
+from .data import uniform_indices
 from .encoder import normalize
 from .metrics import _norm_answer
 
@@ -76,3 +77,20 @@ def fmt_time(sec):
 
 def timeline_text(events):
     return "\n".join(f"[{fmt_time(e['start'])}-{fmt_time(e['end'])}] {e['caption']}" for e in events)
+
+
+# --- whole-video budgets (evaluate_budget.py, watch.py --budget) ----------------
+
+def segment_best(scores, k):
+    """Best-scoring frame in each of k equal slices: uniform's coverage, the scorer's choice
+    within each slice. The fix for relevance-ranked selection losing to uniform at K>=4."""
+    n = len(scores)
+    if n <= k:
+        return uniform_indices(n, k)
+    b = np.linspace(0, n, k + 1).round().astype(int)
+    return [int(a + np.argmax(scores[a:e])) for a, e in zip(b[:-1], b[1:])]
+
+
+def pair_frames(idx):
+    """Chosen indices -> time-ordered pairs, one caption each; an odd tail repeats its frame."""
+    return [idx[a:a + 2] + idx[a:a + 2][-1:] * (2 - len(idx[a:a + 2])) for a in range(0, len(idx), 2)]

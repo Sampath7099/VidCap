@@ -39,6 +39,7 @@ def test_loader_reads_val_paragraphs_in_time_order():
     assert recs["aaa"]["paragraphs"] == ["A man runs. He jumps.", "Someone exercises."], recs["aaa"]
     assert recs["bbb"]["paragraphs"] == ["A dog barks."] and recs["aaa"]["split"] == "val"
     assert len(recs["aaa"]["captions"]) == 3
+    assert recs["aaa"]["events"] == [(0.0, 9.0, "A man runs."), (10.0, 20.0, "He jumps.")],         "events come from the first annotation file, time-ordered, with timestamps"
     print("activitynet loader ok (val only, time-ordered, one paragraph per annotation file)")
 
 
@@ -116,27 +117,66 @@ def test_spread_topk_does_not_bunch():
 
 
 def test_budget_paragraphs():
-    from scripts.evaluate_budget import budget_select, paragraphs_for
+    from scripts.evaluate_budget import paragraphs_for, uniform_budget
     rng = np.random.default_rng(1)
     emb = rng.normal(size=(60, D)).astype(np.float32)
-    assert budget_select(None, emb, 4, None) == [0, 20, 39, 59], "None must be uniform"
+    assert uniform_budget(emb, None, 4) == [0, 20, 39, 59]
     torch.manual_seed(0)
     m = VideoCaptioner(llm_name="distilgpt2", d_vis=D, n_prefix=4, connector="meanpool",
                        lora_r=0).eval()
     recs = [{"video_id": "a"}, {"video_id": "b"}]
     pools = [(emb, np.arange(60, dtype=np.float32)), (emb[:30], np.arange(30, dtype=np.float32))]
-    paras = paragraphs_for(recs, pools, m, 4, None, "cpu", batch=3)
+    paras = paragraphs_for(recs, pools, m, 4, uniform_budget, "cpu", batch=3)
     assert len(paras) == 2 and all(isinstance(x, str) for x in paras)
-    assert paras == paragraphs_for(recs, pools, m, 4, None, "cpu", batch=100), \
-        "batch size must not change which caption lands in which paragraph"
-    odd = paragraphs_for(recs, pools, m, 3, lambda e, r: e[:, 0], "cpu")
+    assert paras == paragraphs_for(recs, pools, m, 4, uniform_budget, "cpu", batch=100),         "batch size must not change which caption lands in which paragraph"
+    odd = paragraphs_for(recs, pools, m, 3, lambda e, t, k, r: [1, 5, 9], "cpu")
     assert len(odd) == 2, "odd budgets must pad the last pair, not crash"
-    print("budget paragraphs ok (uniform when unscored, K/2 captions per video, odd K handled)")
+    print("budget paragraphs ok (K/2 captions per video, batch-invariant, odd K handled)")
+
+
+def test_segment_best_keeps_coverage():
+    from scripts.evaluate_budget import by_segment
+    from vidcap.timeline import pair_frames, segment_best
+    s = np.zeros(120)
+    s[50:56] = [9, 10, 8, 7, 9, 6]                  # the burst plain top-k would spend it all on
+    s[10], s[100] = 5, 4
+    got = segment_best(s, 4)
+    assert got == [10, 51, 60, 100], got
+    assert [g // 30 for g in got] == [0, 1, 2, 3], "exactly one frame per quarter"
+    assert segment_best(np.ones(3), 4) == [0, 1, 2, 2]
+    assert by_segment(lambda e, r: None)(np.zeros((40, 2)), None, 4) == [0, 13, 26, 39],         "no score -> uniform"
+    assert pair_frames([1, 5, 9]) == [[1, 5], [9, 9]] and pair_frames([2, 4]) == [[2, 4]]
+    print(f"segment best ok ({got}: one per quarter, best within each)")
+
+
+def test_event_oracle_picks_inside_each_event():
+    from scripts.evaluate_budget import make_event_oracle
+    from vidcap.encoder import cache_path
+    rng = np.random.default_rng(2)
+    emb = rng.normal(size=(60, D)).astype(np.float32)
+    times = np.arange(60, dtype=np.float32)
+    sents = ["first thing", "second thing", "third thing"]
+    targets = [7, 33, 52]                            # the frame each sentence "describes"
+    p = cache_path("activitynet", "_captions")
+    p.parent.mkdir(parents=True, exist_ok=True)
+    np.savez_compressed(p, emb=emb[targets], video_id=np.array(["x"] * 3), text=np.array(sents))
+    rec = {"video_id": "x", "events": [(0, 20, sents[0]), (25, 40, sents[1]), (45, 59, sents[2])]}
+    sel = make_event_oracle("activitynet")
+    assert sel(emb, times, 3, rec) == targets, sel(emb, times, 3, rec)
+    two = sel(emb, times, 2, rec)
+    assert two == [7, 52], f"k < events: spread over events, first and last -> {two}"
+    six = sel(emb, times, 6, rec)
+    assert len(six) == 6 and len(set(six)) == 6 and {7, 33, 52} <= set(six), six
+    assert all(any(a <= times[i] <= b for a, b, _ in rec["events"]) for i in six), "outside events"
+    assert sel(emb, times, 3, {"video_id": "unknown"}) == [0, 30, 59], "no events -> uniform"
+    print(f"event oracle ok (one frame per event, on its sentence's frame; k>events stays inside)")
 
 
 if __name__ == "__main__":
     test_spread_topk_does_not_bunch()
     test_budget_paragraphs()
+    test_segment_best_keeps_coverage()
+    test_event_oracle_picks_inside_each_event()
     test_loader_reads_val_paragraphs_in_time_order()
     test_loader_fails_loudly_without_annotations()
     test_per_item_cider_matches_corpus()

@@ -399,6 +399,20 @@ run(f"python -m scripts.evaluate_budget --budgets 2,4,8 --out {SAVE}/eval_activi
 print("ALL DONE:", os.listdir(SAVE))
 ```
 
+### ActivityNet coverage experiment (~1.3 h; same inputs as the budget run)
+
+New arms in `evaluate_budget.py`: `seg-learned` / `seg-motion` / `seg-oracle` (K equal slices,
+best frame per slice by that score — uniform's coverage, local choice) and `event-oracle` (one
+frame per annotated event, closest to that event's own sentence: the right ceiling for a
+paragraph). `watch.py --budget K` exposes the budget mode. After Cells 1–2 of the budget notebook:
+
+```python
+run("git pull -q && git log --oneline -1")          # scripts run as subprocesses: no restart needed
+run(f"python -m scripts.evaluate_budget --budgets 2,4,8 "
+    f"--arms uniform,learned,seg-motion,seg-learned,seg-oracle,event-oracle "
+    f"--out {SAVE}/eval_activitynet_coverage.json")
+```
+
 ### For the TVSum/SumMe validation instead
 
 Attach `veerchheda/iitp-summe-tvsum`. Derive roots rather than guessing mount names — the mount

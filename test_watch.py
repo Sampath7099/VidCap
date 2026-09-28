@@ -117,6 +117,19 @@ def test_adapter_swap_restores_exactly():
     print("adapter swap ok (QA weights in, captioner restored, even on error)")
 
 
+def test_budget_timeline_tiles_and_survives_short_pools():
+    from scripts.watch import build_budget_timeline
+    m = tiny()
+    emb, t = scenes(20, 20, 20)
+    ev = build_budget_timeline(emb, t, m, [5, 15, 25, 35, 45, 55], "cpu")
+    assert ev[0]["range"][0] == 0 and ev[-1]["range"][1] == 60, ev
+    assert all(a["range"][1] == b["range"][0] for a, b in zip(ev, ev[1:])), "must tile"
+    assert all(e["range"][1] > e["range"][0] for e in ev), "no empty event"
+    short = build_budget_timeline(emb[:3], t[:3], m, [0, 1, 2, 2, 2, 2], "cpu")
+    assert all(e["range"][1] > e["range"][0] for e in short), f"padded indices made empty events: {short}"
+    print(f"budget timeline ok ({len(ev)} events tile the video; padded short pool safe)")
+
+
 def test_best_event_matches_the_question():
     emb, _ = scenes(10, 10, 10)
     ev = [{"range": [0, 10]}, {"range": [10, 20]}, {"range": [20, 30]}]
@@ -134,4 +147,5 @@ if __name__ == "__main__":
     test_summary_and_timeline_answer_are_text()
     test_adapter_swap_restores_exactly()
     test_best_event_matches_the_question()
+    test_budget_timeline_tiles_and_survives_short_pools()
     print(f"\nwatch gates passed ({TMP})")

@@ -167,14 +167,17 @@ def activitynet(root=None):
     here is trained on ActivityNet, it is evaluation only."""
     root = Path(root or DATA / "activitynet")
     vids = _find_videos(root)
-    paras = {}
+    paras, events = {}, {}
     for fname in AN_REFS:
         for js in sorted(root.rglob(fname))[:1]:
             for vid, v in json.loads(js.read_text()).items():
                 order = sorted(range(len(v["sentences"])), key=lambda i: v["timestamps"][i][0])
-                sents = [v["sentences"][i].strip() for i in order if v["sentences"][i].strip()]
-                if sents:
-                    paras.setdefault(vid.removeprefix("v_"), []).append(sents)
+                ev = [(float(v["timestamps"][i][0]), float(v["timestamps"][i][1]),
+                       v["sentences"][i].strip()) for i in order if v["sentences"][i].strip()]
+                if ev:
+                    vid = vid.removeprefix("v_")
+                    paras.setdefault(vid, []).append([s for _, _, s in ev])
+                    events.setdefault(vid, ev)         # first annotation file's events only
     if not paras:
         _require_root(root, "activitynet", f"{' / '.join(AN_REFS)}")
     recs = []
@@ -183,7 +186,8 @@ def activitynet(root=None):
         if vid in paras:
             recs.append({"video_id": vid, "path": path, "split": "val",
                          "paragraphs": [" ".join(p) for p in paras[vid]],
-                         "captions": [s for p in paras[vid] for s in p]})
+                         "captions": [s for p in paras[vid] for s in p],
+                         "events": events[vid]})
     return recs
 
 

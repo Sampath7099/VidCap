@@ -178,6 +178,8 @@ python3 -m scripts.watch myvideo.mp4
 The two tasks share one frozen Qwen and swap only the 62M adapter between captioning and Q&A, so
 the whole thing fits in ~10 GB of RAM on a CPU.
 
+`--budget 8` replaces scene splitting with 8 frames for the whole video, captioned in pairs (`--budget-select uniform|seg-learned`). On ActivityNet that was the best long-video setting measured (below).
+
 What to expect — measured on hand-written timelines with the real Qwen2.5-1.5B: summaries are
 faithful and in order, with occasional small embellishments ("dives *to prevent a goal*"); the
 timeline answerer got 7 of 9 answerable questions right with the correct time, and said

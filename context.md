@@ -912,3 +912,21 @@ description (MSR-VTT K=1–2, QA K=1, ActivityNet K=2); it does not help multi-e
 Next if pursued: per-event oracle from ActivityNet timestamps (the current oracle is the wrong
 ceiling for coverage), a coverage-aware selector (e.g. best frame per uniform segment), and a
 uniform-budget mode for watch.py summaries.
+
+## Coverage experiment + watch --budget — set up (2026-09-28)
+
+Following the budget result (uniform wins at K≥4; the video-level oracle cannot beat it):
+- `segment_best` (now in `vidcap/timeline.py` with `pair_frames`): K equal slices, argmax per
+  slice. Arms `seg-learned`, `seg-motion`, `seg-oracle`. Gated: burst fixture gives one frame per
+  quarter.
+- `make_event_oracle`: one frame per annotated event (first annotation file's events; loader now
+  returns `events` with timestamps), the frame inside the event closest to that event's sentence
+  embedding; k < events spreads over events, k > events round-robins within them. Gated.
+- `evaluate_budget.py` takes `--arms`; `COMPARE` lists the paired tests (each vs uniform,
+  seg-learned vs learned / seg-motion, event-oracle vs seg-learned).
+- `watch.py --budget K [--budget-select uniform|seg-learned]`: K frames for the whole video in
+  pairs, events tile the pool (padded short pools deduplicated first — gated).
+- Circular import (watch → evaluate_budget → evaluate_paragraphs → watch) resolved by moving the
+  two pure helpers into vidcap/timeline.py.
+Dry runs: all new arms end to end on the 3-video fixture; `watch --budget 8 --budget-select
+seg-learned` end to end on the synthetic video.
