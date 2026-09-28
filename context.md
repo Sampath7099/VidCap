@@ -844,3 +844,35 @@ feeds the oracle. Dry run on a 3-video fake cache with real Qwen: all 5 caption 
 Caveat to state with results: CIDEr-D's gaussian length penalty (sigma 6 tokens) punishes a
 ~10-sentence timeline against ~3.7-sentence references, so absolute scores will be low;
 between-arm differences on the same segmentation are the measurement.
+
+## ActivityNet paragraph results (2026-09-28) — frame selection does not help per scene
+
+Kaggle committed run, 300 val videos (build_cache --limit 300), K=2 per segment, zero-shot.
+Raw: `results/eval_activitynet_paragraphs.json`.
+
+| arm | CIDEr-D | BLEU-4 | ROUGE-L | words |
+|---|---|---|---|---|
+| fixed+uniform | 0.0712 | 0.0447 | 0.2277 | 49 |
+| scenes+uniform | 0.0486 | 0.0391 | 0.2164 | 62 |
+| scenes+motion | 0.0568 | 0.0389 | 0.2173 | 66 |
+| scenes+learned | 0.0421 | 0.0402 | 0.2188 | 64 |
+| scenes+oracle | 0.0635 | 0.0411 | 0.2215 | 63 |
+| uniform summary | 0.0710 | 0.0298 | 0.2054 | 44 |
+| learned summary | 0.0777 | 0.0302 | 0.2023 | 46 |
+
+Paired bootstrap (per-video CIDEr-D): learned−uniform −0.0065 [−0.0193, +0.0053]; learned−motion
+−0.0147 [−0.0301, −0.0012]; motion−uniform +0.0082 [−0.0060, +0.0223]; oracle−uniform +0.0149
+[−0.0015, +0.0313]; scenes−fixed (uniform) −0.0226 [−0.0389, −0.0068]; oracle(scenes)−fixed
+−0.0077 n.s.; summary−timeline +0.0356 (learned) / +0.0224 (uniform), both sig.; learned
+summary−fixed +0.0065 n.s. Learned beat uniform on 42.7% of videos (5.3% ties).
+
+Reading: per-scene pools are ~10 frames of one shot, so K=2 of them are interchangeable — the
+oracle, which reads the references, is not significantly better either. That is the MSR-VTT K≥3
+saturation again: selection needs a tiny budget over a large varied pool. Scene splitting yields
+more, repetitive sentences (identical-only merging misses "back flip on a rock" x5), which CIDEr
+and BLEU punish. The summary step is the only clear gain but under-condenses (~5.5 sentences vs
+the 2–4 asked; long timelines hit the 120-token cap). Captions are MSR-VTT-generic, so absolute
+scores are low and not comparable to captioners trained on ActivityNet.
+
+Next if pursued: global budget (K frames from the whole video — the sparse-event stress test the
+plan originally meant), near-duplicate caption merging, longer min scene length, tighter summary.

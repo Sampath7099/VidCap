@@ -42,6 +42,8 @@ floor 0.100. Same shape as captioning: learned helps at K=1, gone by K=4. Raw:
 
 **`scripts/watch.py`** (2026-09-27) — video in → scene timeline (learned selector per scene) → Qwen-Instruct summary → questions answered from frames (qaB) and from the timeline. Tested with unit gates and a synthetic-video smoke run; not yet run with the real checkpoints. Needs `stageB.pt` + `scorer.pt` (+ `qaB.pt`) in `out/checkpoints/`. Details and limits: README "Watch a video" and context.md.
 
+**ActivityNet paragraphs — measured 2026-09-28, NEGATIVE for selection.** 300 val videos, zero-shot, K=2 per segment. CIDEr-D: fixed windows+uniform 0.071; scenes+uniform 0.049 / motion 0.057 / learned 0.042 / oracle 0.064; Qwen summaries 0.071 (uniform) / 0.078 (learned). learned−uniform −0.0065 [−0.019, +0.005] (no difference); even oracle−uniform is n.s.; scenes hurt vs fixed windows (−0.023, sig.); summary−timeline +0.022 to +0.036 (sig.). **Do not claim frame selection helps long videos.** The claim is K=1–2 from a whole short clip. Raw: [results/eval_activitynet_paragraphs.json](results/eval_activitynet_paragraphs.json); analysis in README "Measured on long videos".
+
 **Composed summaries** (`scripts/summarize.py`) — qualitative only, and weak: "How many: two" in
 9 of 10 outputs is the answer prior. [results/summaries.txt](results/summaries.txt). Do not
 present the summariser as validated.
@@ -300,7 +302,7 @@ The caption evaluation used the same Cells 1–2 plus
 `run("python -m scripts.evaluate --ckpt stageB --scorer scorer --oracle --budgets 1,2,3,4")`
 (needs `scorer.pt`). It is done — do not rerun it.
 
-### ActivityNet paragraph evaluation (committed, ~4.5 h)
+### ActivityNet paragraph evaluation (committed, ~4.5 h) — DONE 2026-09-28, results in §2
 
 Measures whether learned frame selection helps `watch.py`'s timeline and summary on long
 videos, against human-written paragraphs. Same **Cell 1** as the Q&A run.

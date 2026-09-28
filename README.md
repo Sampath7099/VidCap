@@ -183,8 +183,59 @@ faithful and in order, with occasional small embellishments ("dives *to prevent 
 timeline answerer got 7 of 9 answerable questions right with the correct time, and said
 "not in the video" to both unanswerable ones — but also to 2 answerable ones ("what happens at
 the end?", "what does the goalkeeper do?"). That is a small hand check, not a benchmark. The summary can only be as specific as the captions, and MSR-VTT captions are
-generic ("a man is talking"). There is no metric for the summaries yet; ActivityNet Captions,
-which has paragraph descriptions of long videos, would be the way to add one.
+generic ("a man is talking").
+
+### Measured on long videos: ActivityNet Captions — selection does not help here
+
+300 ActivityNet Captions val videos (spread evenly; median ~2 min), each scored against its two
+human-written reference paragraphs. Zero-shot: nothing was trained on ActivityNet. Same videos
+and K=2 frames per segment in every arm. CIDEr-D (per-video, paired bootstrap 95% CIs):
+
+| arm | CIDEr-D | BLEU-4 | ROUGE-L | words |
+|---|---|---|---|---|
+| fixed 15 s windows + uniform (naive) | 0.0712 | **0.0447** | **0.2277** | 49 |
+| scenes + uniform | 0.0486 | 0.0391 | 0.2164 | 62 |
+| scenes + motion | 0.0568 | 0.0389 | 0.2173 | 66 |
+| scenes + **learned** | 0.0421 | 0.0402 | 0.2188 | 64 |
+| scenes + oracle (ceiling) | 0.0635 | 0.0411 | 0.2215 | 63 |
+| scenes + uniform → **Qwen summary** | 0.0710 | 0.0298 | 0.2054 | 44 |
+| scenes + learned → **Qwen summary** | **0.0777** | 0.0302 | 0.2023 | 46 |
+
+| comparison | Δ CIDEr-D | 95% CI | verdict |
+|---|---|---|---|
+| learned − uniform (scenes) | −0.0065 | [−0.0193, +0.0053] | no difference |
+| learned − motion (scenes) | −0.0147 | [−0.0301, −0.0012] | learned slightly worse |
+| oracle − uniform (scenes) | +0.0149 | [−0.0015, +0.0313] | even the ceiling barely helps |
+| scenes − fixed windows (uniform) | −0.0226 | [−0.0389, −0.0068] | scene splitting hurts |
+| summary − timeline (learned) | +0.0356 | [+0.0199, +0.0516] | summary clearly helps |
+| summary − timeline (uniform) | +0.0224 | [+0.0065, +0.0389] | summary clearly helps |
+| learned summary − fixed windows | +0.0065 | [−0.0142, +0.0275] | tied with naive |
+
+**What this says, plainly:**
+
+1. **Frame selection does not transfer to this setting.** Learned ≈ uniform, and learned is a
+   little worse than motion. The oracle row explains why: even frames chosen by peeking at the
+   reference text are not significantly better. Inside a 3–15 s scene sampled at 1 fps there are
+   only ~10 candidate frames, and any 2 of them carry nearly the same content — the same
+   saturation MSR-VTT shows at K≥3. Selection pays when a very small budget must be chosen from a
+   large, varied pool (K=1 of a whole clip); per-scene selection removes exactly that condition.
+2. **Scene splitting hurt against plain fixed windows.** It produced more, and more repetitive,
+   sentences (62 vs 49 words; "a man is doing a back flip on a rock" five times in one video),
+   and CIDEr/BLEU punish that. `merge_repeats` only merges *identical* adjacent captions.
+3. **The Qwen summary is the one step that clearly helps**, lifting its timeline by +0.022 to
+   +0.036 and bringing the scene pipeline back level with the naive baseline. It did not condense
+   enough, though: ~5.5 sentences where it was asked for 2–4, against references of ~30–70 words.
+4. **Absolute scores are low** because the captioner was trained only on MSR-VTT: its captions
+   are generic, sometimes wrong ("a cat is running on a treadmill" for a cat climbing a wall), and
+   never name the specific activity ActivityNet's references describe. Published paragraph
+   captioners are trained on ActivityNet itself; these numbers are not comparable to them.
+
+So the frame-selection claim stays where the evidence puts it: **one or two frames chosen from a
+whole short clip**. The long-video pipeline works end to end and its summary step is measurably
+useful, but choosing frames per scene added nothing. The natural fixes are a *global* budget
+(pick K frames from the whole video, where sparse events can be missed by uniform sampling),
+fewer and less repetitive scenes, and a tighter summary. Raw numbers:
+[results/eval_activitynet_paragraphs.json](results/eval_activitynet_paragraphs.json).
 
 ## What this does NOT buy you (yet)
 
@@ -317,7 +368,8 @@ python3 -m scripts.plot_curves out/eval_msrvtt_test.json figures/budget_curves.p
 Done: embedding cache, connector training, blind control, oracle ceiling, frame scorer, four-arm
 budget curves on the full test split, TVSum/SumMe human-importance validation, video Q&A (1 epoch,
 three-selector comparison), composed summaries, end-to-end demo, `watch` (scene timeline,
-summary and two-source Q&A for longer videos).
+summary and two-source Q&A for longer videos), ActivityNet paragraph evaluation (300 videos,
+7 arms — selection did not help per scene; the summary step did).
 
 Not done: Stage C LoRA; diversity-aware selection; connector and LoRA-rank ablations; beam-search
 evaluation; multi-seed runs. None are load-bearing for the results above.
