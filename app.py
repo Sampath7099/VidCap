@@ -68,6 +68,7 @@ def do_caption(path, k, how):
     v, m = video(path), models()
     select = m["learned"] if how == "Smart (learned picker)" else uniform_sel
     cap, idx = caption_from_pool(v["emb"], int(k), select, m["cap"], DEVICE)
+    cap = " ".join(cap.split())
     shown = [(v["frames"][i], f"{fmt_time(v['times'][i])}") for i in dict.fromkeys(idx)]
     return cap[:1].upper() + cap[1:], shown
 
