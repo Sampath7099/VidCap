@@ -360,6 +360,43 @@ CIDEr-D gives paired bootstrap CIs. Expect low absolute CIDEr: the metric's leng
 punishes a 10-sentence timeline against ~3.7-sentence references, which is why the summaries
 are scored too.
 
+### ActivityNet whole-video budget (committed, ~1 h, no re-encoding)
+
+`scripts/evaluate_budget.py`: K frames for the whole video (2 / 4 / 8), chosen by uniform /
+motion / learned / oracle with a minimum gap of half the uniform spacing (`spread_topk` — plain
+top-k spends the budget on one burst), captioned in time-ordered pairs → K/2 sentences.
+**Add Input:** `almirneto/activitynet-captions` (loader needs the videos present and the val
+JSONs), `vidcap-checkpoints`, and the saved `cache_activitynet` dataset. Cell 1 as before.
+
+```python
+# Cell 2
+for d in (DATA, OUT / "cache", OUT / "checkpoints"):
+    d.mkdir(parents=True, exist_ok=True)
+root = pathlib.Path("/kaggle/input")
+v1 = [p for p in root.rglob("val_1.json") if (p.parent / "videos").exists()]
+assert len(v1) == 1, f"attach almirneto/activitynet-captions; found {v1}"
+an = DATA / "activitynet"
+if an.is_symlink() or an.exists():
+    an.unlink()
+an.symlink_to(v1[0].parent); assert an.exists()
+cands = [p.parent for p in root.rglob("_captions.npz")
+         if not any(q.stem.startswith("video") for q in list(p.parent.glob("*.npz"))[:20])]
+assert cands, "attach the saved cache_activitynet dataset"
+src = max(cands, key=lambda d: sum(1 for _ in d.glob("*.npz")))
+link = OUT / "cache" / "activitynet"
+if link.is_symlink() or link.exists():
+    link.unlink()
+link.symlink_to(src); assert link.exists()
+print("cache:", src, len(list(src.glob("*.npz"))) - 1, "videos")
+for name in ("stageB.pt", "scorer.pt"):
+    hits = list(root.rglob(name)); assert hits, f"{name} missing"
+    shutil.copy(hits[0], OUT / "checkpoints" / name)
+
+# Cell 3
+run(f"python -m scripts.evaluate_budget --budgets 2,4,8 --out {SAVE}/eval_activitynet_budget.json")
+print("ALL DONE:", os.listdir(SAVE))
+```
+
 ### For the TVSum/SumMe validation instead
 
 Attach `veerchheda/iitp-summe-tvsum`. Derive roots rather than guessing mount names — the mount

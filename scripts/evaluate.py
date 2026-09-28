@@ -23,14 +23,18 @@ def _unit(x):
     return x / np.maximum(np.linalg.norm(x, axis=1, keepdims=True), 1e-8)
 
 
+def motion_scores(emb, rec=None):
+    """Per-frame cosine distance to the previous frame (0 for the first)."""
+    e = _unit(emb)
+    return np.concatenate([[0.0], 1.0 - (e[1:] * e[:-1]).sum(1)])
+
+
 def motion_indices(emb, k, rec=None):
     """Classical baseline: pick frames with the largest change from the previous frame.
     Operates on embedding deltas (cached) rather than raw pixels — same idea, no video decode."""
     if len(emb) <= k:
         return uniform_indices(len(emb), k)
-    e = _unit(emb)
-    d = np.concatenate([[0.0], 1.0 - (e[1:] * e[:-1]).sum(1)])  # cosine distance to previous
-    return sorted(np.argsort(-d)[:k].tolist())
+    return sorted(np.argsort(-motion_scores(emb))[:k].tolist())
 
 
 def make_oracle(dataset):
@@ -42,20 +46,30 @@ def make_oracle(dataset):
     building one. Oracle >> uniform means the headroom is real and the open question is only
     whether it can be found from pixels alone.
     """
+    score = make_oracle_scores(dataset)
+
+    def oracle(emb, k, rec=None):
+        s = score(emb, rec)
+        if s is None or len(emb) <= k:
+            return uniform_indices(len(emb), k)
+        return sorted(np.argsort(-s)[:k].tolist())
+
+    return oracle
+
+
+def make_oracle_scores(dataset):
+    """-> fn(emb, rec): per-frame mean similarity to the clip's captions, or None if it has none."""
     z = np.load(CACHE / dataset / "_captions.npz")
     by_vid = {}
     for v, e in zip(z["video_id"], z["emb"]):
         by_vid.setdefault(str(v), []).append(e)
     by_vid = {v: _unit(np.stack(e)) for v, e in by_vid.items()}
 
-    def oracle(emb, k, rec=None):
+    def score(emb, rec=None):
         caps = by_vid.get(str(rec["video_id"])) if rec else None
-        if caps is None or len(emb) <= k:
-            return uniform_indices(len(emb), k)
-        score = (_unit(emb) @ caps.T).mean(1)      # mean similarity over this clip's captions
-        return sorted(np.argsort(-score)[:k].tolist())
+        return None if caps is None else (_unit(emb) @ caps.T).mean(1)
 
-    return oracle
+    return score
 
 
 def make_learned(name, device):
@@ -64,19 +78,28 @@ def make_learned(name, device):
     Same shape as the oracle but without the caption, so the gap between them is exactly how
     much of the ceiling the scorer actually recovers.
     """
+    score = make_learned_scores(name, device)
+
+    def learned(emb, k, rec=None):
+        if len(emb) <= k:
+            return uniform_indices(len(emb), k)
+        return sorted(np.argsort(-score(emb))[:k].tolist())
+
+    return learned
+
+
+def make_learned_scores(name, device):
+    """-> fn(emb, rec=None): the frame scorer's per-frame relevance."""
     from vidcap.scorer import FrameScorer
     model = FrameScorer().to(device).eval()
     if checkpoint.load(name, model, map_location=device) is None:
         raise SystemExit(f"no scorer checkpoint '{name}' — run scripts/train_scorer.py first")
 
     @torch.no_grad()
-    def learned(emb, k, rec=None):
-        if len(emb) <= k:
-            return uniform_indices(len(emb), k)
-        s = model(torch.from_numpy(emb).float()[None].to(device))[0].cpu().numpy()
-        return sorted(np.argsort(-s)[:k].tolist())
+    def score(emb, rec=None):
+        return model(torch.from_numpy(emb).float()[None].to(device))[0].cpu().numpy()
 
-    return learned
+    return score
 
 
 def uniform_sel(emb, k, rec=None):

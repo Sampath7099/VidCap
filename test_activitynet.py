@@ -100,7 +100,43 @@ def test_batching_keeps_order_and_timelines_tile():
     print(f"batched captions ok (identical to one-by-one; {sum(map(len, tl))} events tile 3 videos)")
 
 
+def test_spread_topk_does_not_bunch():
+    from scripts.evaluate_budget import spread_topk
+    s = np.zeros(120)
+    s[50:56] = [9, 10, 8, 7, 9, 6]                  # one exciting burst
+    s[10], s[100] = 5, 4                             # two lesser peaks elsewhere
+    got = spread_topk(s, 3, 15)
+    assert got == [10, 51, 100], f"expected the burst's best plus the other peaks, got {got}"
+    plain = sorted(np.argsort(-s)[:3].tolist())
+    assert max(plain) - min(plain) < 6, "fixture must show that plain top-k bunches"
+    g = spread_topk(s, 8, 15)
+    assert len(g) == 8 and len(set(g)) == 8 and g == sorted(g), f"gap too strict must top up: {g}"
+    assert spread_topk(np.ones(3), 4, 1) == [0, 1, 2, 2], "short pool pads like uniform_indices"
+    print(f"spread top-k ok ({got}; plain top-k would bunch at {plain})")
+
+
+def test_budget_paragraphs():
+    from scripts.evaluate_budget import budget_select, paragraphs_for
+    rng = np.random.default_rng(1)
+    emb = rng.normal(size=(60, D)).astype(np.float32)
+    assert budget_select(None, emb, 4, None) == [0, 20, 39, 59], "None must be uniform"
+    torch.manual_seed(0)
+    m = VideoCaptioner(llm_name="distilgpt2", d_vis=D, n_prefix=4, connector="meanpool",
+                       lora_r=0).eval()
+    recs = [{"video_id": "a"}, {"video_id": "b"}]
+    pools = [(emb, np.arange(60, dtype=np.float32)), (emb[:30], np.arange(30, dtype=np.float32))]
+    paras = paragraphs_for(recs, pools, m, 4, None, "cpu", batch=3)
+    assert len(paras) == 2 and all(isinstance(x, str) for x in paras)
+    assert paras == paragraphs_for(recs, pools, m, 4, None, "cpu", batch=100), \
+        "batch size must not change which caption lands in which paragraph"
+    odd = paragraphs_for(recs, pools, m, 3, lambda e, r: e[:, 0], "cpu")
+    assert len(odd) == 2, "odd budgets must pad the last pair, not crash"
+    print("budget paragraphs ok (uniform when unscored, K/2 captions per video, odd K handled)")
+
+
 if __name__ == "__main__":
+    test_spread_topk_does_not_bunch()
+    test_budget_paragraphs()
     test_loader_reads_val_paragraphs_in_time_order()
     test_loader_fails_loudly_without_annotations()
     test_per_item_cider_matches_corpus()

@@ -876,3 +876,15 @@ scores are low and not comparable to captioners trained on ActivityNet.
 
 Next if pursued: global budget (K frames from the whole video — the sparse-event stress test the
 plan originally meant), near-duplicate caption merging, longer min scene length, tighter summary.
+
+## Whole-video budget experiment — set up (2026-09-28)
+
+Motivated by the per-scene null: there, the oracle could not beat uniform, so selection had
+nothing to choose between. `scripts/evaluate_budget.py` gives each video ONE budget (K = 2/4/8
+frames from the ~120-frame pool), so selection decides which moments get described at all.
+`spread_topk` enforces a min gap of half the uniform spacing — plain top-k on a per-frame scorer
+bunches on one burst (gated: [50, 51, 54] vs spread [10, 51, 100]). Chosen frames are captioned
+in time-ordered pairs, K/2 sentences, so K=8 lands near the references' ~3.7 sentences.
+`evaluate.py` selectors now wrap `motion_scores` / `make_learned_scores` / `make_oracle_scores`;
+verified index-identical to before on the real scorer.pt. Oracle headroom is the thing to read
+first: if oracle ≈ uniform again, the budget idea does not help here either.
