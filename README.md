@@ -7,10 +7,9 @@ Almost every system picks those few frames blindly and evenly: one every few sec
 in them. That works until the one moment that matters falls between the frames it picked.
 
 VidCap adds a small learned **frame picker** that glances at every frame and chooses the ones worth
-looking at. Show it a night-time clip of a lightning strike, and evenly spaced sampling hands the
-model two dark frames. VidCap picks the exact frame where the lightning flashes.
+looking at.
 
-![learned vs uniform frame selection](figures/selection_myclip.png)
+![evenly spaced vs VidCap frame](figures/examples.png)
 
 On top of that picker sits a small video assistant that can:
 
@@ -90,52 +89,7 @@ python -m scripts.watch myvideo.mp4 --budget 8 --ask "what is the man holding?" 
 
 ## Results
 
-All numbers are on data the models never saw during training.
-
-### Captioning: one well-chosen frame is worth two evenly spaced ones
-
-MSR-VTT test set, all 2,990 clips. The captioner is identical in every column; only the choice of
-frames changes. CIDEr-D is the standard captioning score (higher is better).
-
-![quality vs frame budget](figures/budget_curves.png)
-
-| Frames | Evenly spaced | **VidCap picker** | Improvement |
-|---|---|---|---|
-| 1 | 0.437 | **0.500** | **+14%** |
-| 2 | 0.493 | **0.515** | +5% |
-
-- With a single frame, the picker recovers **58%** of the best improvement possible. To measure
-  that ceiling, we let a "cheating" picker read the human-written captions before choosing frames.
-- **One VidCap frame (0.500) matches two evenly spaced frames (0.493).**
-- The same holds on the other standard scores: at one frame, BLEU-4 goes from 0.352 to 0.394 and
-  ROUGE-L from 0.588 to 0.612.
-- The gain is about **9× larger** than the variation between two independent trainings of the
-  picker, so it isn't luck.
-
-### Question answering
-
-MSRVTT-QA, 5,000 test questions spread across the whole test set. Answers are single words.
-
-| Frames | Evenly spaced | **VidCap picker** |
-|---|---|---|
-| 1 | 37.5% | **39.7%** |
-
-For scale: always answering "man", the most common answer, gets 10%.
-
-### Long videos
-
-On 300 ActivityNet Captions videos (about 2 minutes each, never trained on), the picker again
-recovers **58%** of the possible improvement when only two frames can describe the whole video.
-The summarizer also turns a list of raw captions into a noticeably better paragraph: roughly
-**+50–85%** on CIDEr-D against human-written descriptions.
-
-### It really is watching the video
-
-With the video input switched off, the same captioner's score falls from **0.311 to 0.019**. The
-captions come from what it sees, not from guessing a typical sentence.
-
-The picker helps most when the budget is tight (1–2 frames). Give the model four or more frames of
-a short clip and evenly spaced sampling catches up.
+In short: from a single frame, VidCap's captions score **14% higher** than the usual evenly spaced sampling, and one VidCap frame is worth two evenly spaced ones. Full numbers, examples and how each was measured are in [RESULTS.md](RESULTS.md).
 
 ## Reproducing the training
 
