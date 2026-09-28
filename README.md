@@ -237,6 +237,41 @@ useful, but choosing frames per scene added nothing. The natural fixes are a *gl
 fewer and less repetitive scenes, and a tighter summary. Raw numbers:
 [results/eval_activitynet_paragraphs.json](results/eval_activitynet_paragraphs.json).
 
+### Whole-video budget: selection helps for one sentence, coverage wins for a paragraph
+
+The per-scene null left one question: does selection help when a single budget must cover the
+whole ~2-minute video, so it decides *which moments* get described at all? Same 300 videos; each
+method picks K frames from the whole pool (at least half a uniform step apart, so a scorer cannot
+spend everything on one burst); frames are captioned in time-ordered pairs, K/2 sentences.
+
+| K | uniform | motion | **learned** | oracle | learned − uniform (95% CI) | oracle − uniform |
+|---|---|---|---|---|---|---|
+| 2 (1 sentence) | 0.0025 | 0.0051 | **0.0057** | 0.0080 | **+0.0032** [+0.0008, +0.0069] | +0.0055, sig. |
+| 4 (2 sentences) | **0.0405** | 0.0283 | 0.0297 | 0.0428 | −0.0108 [−0.0199, −0.0025] | +0.0023, n.s. |
+| 8 (4 sentences) | **0.1019** | 0.0939 | 0.1008 | 0.0938 | −0.0011 [−0.0193, +0.0170] | −0.0081, n.s. |
+
+1. **At K=2 the MSR-VTT result reappears on long videos.** Learned beats uniform significantly
+   and recovers **58% of the oracle headroom** — the same 58% as on the MSR-VTT test split. It
+   does not beat motion here (+0.0006, n.s.), and the absolute scores are tiny because one
+   8-word sentence is being scored against 30–70-word paragraphs.
+2. **From K=4 up, uniform wins or ties — and so does the oracle's failure to beat it.** Even
+   frames chosen by reading the references are no better than evenly spaced ones. The reason is
+   what these selectors optimise: each scores frames by relevance to the video's captions *as a
+   whole*, so they favour the video's most typical moments. A paragraph needs **coverage** — one
+   sentence per event — and evenly spaced frames guarantee coverage. Relevance is the right
+   objective for one sentence and the wrong one for four.
+3. **The simplest long-video pipeline measured is also the best:** 8 evenly spaced frames,
+   captioned in 4 pairs, scores **0.102** — above every scene-based arm, including the Qwen
+   summary (0.078). Part of that is length: 27 words sit closer to the references than the scene
+   timelines' 46–64, and CIDEr-D's length penalty rewards it.
+
+So across every experiment the finding is consistent: **learned selection helps when a very
+small budget produces a single description** — MSR-VTT K=1–2, MSRVTT-QA K=1, ActivityNet K=2 —
+and **stops helping once the output has to cover several events**, where spreading frames out
+matters more than picking the most relevant ones. A per-event oracle (using ActivityNet's
+timestamps) and a coverage-aware selector are the natural next steps. Raw numbers:
+[results/eval_activitynet_budget.json](results/eval_activitynet_budget.json).
+
 ## What this does NOT buy you (yet)
 
 A lower frame budget is **not** a speedup in this implementation, and it is worth being precise
@@ -369,7 +404,7 @@ Done: embedding cache, connector training, blind control, oracle ceiling, frame 
 budget curves on the full test split, TVSum/SumMe human-importance validation, video Q&A (1 epoch,
 three-selector comparison), composed summaries, end-to-end demo, `watch` (scene timeline,
 summary and two-source Q&A for longer videos), ActivityNet paragraph evaluation (300 videos,
-7 arms — selection did not help per scene; the summary step did).
+7 arms — selection did not help per scene; the summary step did), whole-video budget (learned helps at K=2, uniform wins at K≥4 where coverage matters).
 
 Not done: Stage C LoRA; diversity-aware selection; connector and LoRA-rank ablations; beam-search
 evaluation; multi-seed runs. None are load-bearing for the results above.

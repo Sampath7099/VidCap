@@ -42,6 +42,8 @@ floor 0.100. Same shape as captioning: learned helps at K=1, gone by K=4. Raw:
 
 **`scripts/watch.py`** (2026-09-27) — video in → scene timeline (learned selector per scene) → Qwen-Instruct summary → questions answered from frames (qaB) and from the timeline. Tested with unit gates and a synthetic-video smoke run; not yet run with the real checkpoints. Needs `stageB.pt` + `scorer.pt` (+ `qaB.pt`) in `out/checkpoints/`. Details and limits: README "Watch a video" and context.md.
 
+**ActivityNet whole-video budget — measured 2026-09-28.** K frames from the whole video, 300 videos. K=2: learned 0.0057 vs uniform 0.0025, +0.0032 [+0.0008, +0.0069], 58% of oracle headroom (same 58% as MSR-VTT), but ≈ motion and tiny in absolute terms. K=4: uniform best, learned −0.011 (sig.), oracle n.s. K=8: all tied, uniform 0.102 = best long-video pipeline measured (beats scene summary 0.078). Selectors optimise relevance; paragraphs need coverage. **Claim: learned selection helps for a single description from a tiny budget; not for multi-event paragraphs.** Raw: [results/eval_activitynet_budget.json](results/eval_activitynet_budget.json).
+
 **ActivityNet paragraphs — measured 2026-09-28, NEGATIVE for selection.** 300 val videos, zero-shot, K=2 per segment. CIDEr-D: fixed windows+uniform 0.071; scenes+uniform 0.049 / motion 0.057 / learned 0.042 / oracle 0.064; Qwen summaries 0.071 (uniform) / 0.078 (learned). learned−uniform −0.0065 [−0.019, +0.005] (no difference); even oracle−uniform is n.s.; scenes hurt vs fixed windows (−0.023, sig.); summary−timeline +0.022 to +0.036 (sig.). **Do not claim frame selection helps long videos.** The claim is K=1–2 from a whole short clip. Raw: [results/eval_activitynet_paragraphs.json](results/eval_activitynet_paragraphs.json); analysis in README "Measured on long videos".
 
 **Composed summaries** (`scripts/summarize.py`) — qualitative only, and weak: "How many: two" in
@@ -360,7 +362,7 @@ CIDEr-D gives paired bootstrap CIs. Expect low absolute CIDEr: the metric's leng
 punishes a 10-sentence timeline against ~3.7-sentence references, which is why the summaries
 are scored too.
 
-### ActivityNet whole-video budget (committed, ~1 h, no re-encoding)
+### ActivityNet whole-video budget (committed, ~1 h, no re-encoding) — DONE 2026-09-28, results in §2
 
 `scripts/evaluate_budget.py`: K frames for the whole video (2 / 4 / 8), chosen by uniform /
 motion / learned / oracle with a minimum gap of half the uniform spacing (`spread_topk` — plain

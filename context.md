@@ -888,3 +888,27 @@ in time-ordered pairs, K/2 sentences, so K=8 lands near the references' ~3.7 sen
 `evaluate.py` selectors now wrap `motion_scores` / `make_learned_scores` / `make_oracle_scores`;
 verified index-identical to before on the real scorer.pt. Oracle headroom is the thing to read
 first: if oracle ≈ uniform again, the budget idea does not help here either.
+
+## Whole-video budget results (2026-09-28)
+
+`results/eval_activitynet_budget.json`, 300 videos, CIDEr-D, paired bootstrap:
+
+| K | uniform | motion | learned | oracle | l−u | o−u |
+|---|---|---|---|---|---|---|
+| 2 | 0.0025 | 0.0051 | 0.0057 | 0.0080 | +0.0032 [+0.0008, +0.0069] | +0.0055 [+0.0022, +0.0100] |
+| 4 | 0.0405 | 0.0283 | 0.0297 | 0.0428 | −0.0108 [−0.0199, −0.0025] | +0.0023 n.s. |
+| 8 | 0.1019 | 0.0939 | 0.1008 | 0.0938 | −0.0011 n.s. | −0.0081 n.s. |
+
+K=2 reproduces the short-clip finding (58% of oracle headroom, identical to MSR-VTT full split),
+but learned ≈ motion (+0.0006 n.s.) and scores are near zero (8 words vs 30–70-word refs). At
+K≥4 uniform wins or ties and the oracle does not beat it. Diagnosis: learned and oracle both rank
+frames by similarity to the video's captions pooled together, i.e. typicality; a multi-sentence
+paragraph is scored on coverage of distinct events, which uniform spacing guarantees. The
+min-gap spreading is not enough to substitute for it. Uniform K=8 in pairs (0.102) is the best
+long-video pipeline measured, above scene summaries (0.078) — partly length (27 words).
+
+Consistent claim across all experiments: learned selection helps when a tiny budget yields ONE
+description (MSR-VTT K=1–2, QA K=1, ActivityNet K=2); it does not help multi-event paragraphs.
+Next if pursued: per-event oracle from ActivityNet timestamps (the current oracle is the wrong
+ceiling for coverage), a coverage-aware selector (e.g. best frame per uniform segment), and a
+uniform-budget mode for watch.py summaries.
