@@ -42,6 +42,8 @@ floor 0.100. Same shape as captioning: learned helps at K=1, gone by K=4. Raw:
 
 **`scripts/watch.py`** (2026-09-27) — video in → scene timeline (learned selector per scene) → Qwen-Instruct summary → questions answered from frames (qaB) and from the timeline. Tested with unit gates and a synthetic-video smoke run; not yet run with the real checkpoints. Needs `stageB.pt` + `scorer.pt` (+ `qaB.pt`) in `out/checkpoints/`. Details and limits: README "Watch a video" and context.md.
 
+**ActivityNet coverage experiment — measured 2026-09-28.** seg-learned (best frame per equal slice) is worse than uniform at K=4 (−0.0146, sig.) and tied at K=8. event-oracle (one frame per annotated event) is best at K=8: 0.1178 vs uniform 0.1019, +0.0159 [−0.0027, +0.0365] (n.s.), and significantly beats seg-learned at K=4/8. At K=2 all selectors beat uniform. **Long-video conclusion: only event knowledge helps paragraphs; the scorer does not have it. Uniform stays the practical default.** Raw: [results/eval_activitynet_coverage.json](results/eval_activitynet_coverage.json).
+
 **ActivityNet whole-video budget — measured 2026-09-28.** K frames from the whole video, 300 videos. K=2: learned 0.0057 vs uniform 0.0025, +0.0032 [+0.0008, +0.0069], 58% of oracle headroom (same 58% as MSR-VTT), but ≈ motion and tiny in absolute terms. K=4: uniform best, learned −0.011 (sig.), oracle n.s. K=8: all tied, uniform 0.102 = best long-video pipeline measured (beats scene summary 0.078). Selectors optimise relevance; paragraphs need coverage. **Claim: learned selection helps for a single description from a tiny budget; not for multi-event paragraphs.** Raw: [results/eval_activitynet_budget.json](results/eval_activitynet_budget.json).
 
 **ActivityNet paragraphs — measured 2026-09-28, NEGATIVE for selection.** 300 val videos, zero-shot, K=2 per segment. CIDEr-D: fixed windows+uniform 0.071; scenes+uniform 0.049 / motion 0.057 / learned 0.042 / oracle 0.064; Qwen summaries 0.071 (uniform) / 0.078 (learned). learned−uniform −0.0065 [−0.019, +0.005] (no difference); even oracle−uniform is n.s.; scenes hurt vs fixed windows (−0.023, sig.); summary−timeline +0.022 to +0.036 (sig.). **Do not claim frame selection helps long videos.** The claim is K=1–2 from a whole short clip. Raw: [results/eval_activitynet_paragraphs.json](results/eval_activitynet_paragraphs.json); analysis in README "Measured on long videos".
@@ -399,7 +401,7 @@ run(f"python -m scripts.evaluate_budget --budgets 2,4,8 --out {SAVE}/eval_activi
 print("ALL DONE:", os.listdir(SAVE))
 ```
 
-### ActivityNet coverage experiment (~1.3 h; same inputs as the budget run)
+### ActivityNet coverage experiment (~1.3 h; same inputs as the budget run) — DONE 2026-09-28, results in §2
 
 New arms in `evaluate_budget.py`: `seg-learned` / `seg-motion` / `seg-oracle` (K equal slices,
 best frame per slice by that score — uniform's coverage, local choice) and `event-oracle` (one

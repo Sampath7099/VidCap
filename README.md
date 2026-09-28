@@ -274,6 +274,37 @@ matters more than picking the most relevant ones. A per-event oracle (using Acti
 timestamps) and a coverage-aware selector are the natural next steps. Raw numbers:
 [results/eval_activitynet_budget.json](results/eval_activitynet_budget.json).
 
+### Coverage-aware selection and an event-level ceiling — the last long-video test
+
+Two follow-ups on the same 300 videos. **seg-** arms split the video into K equal slices and take
+the best frame per slice (uniform's coverage, a local choice). **event-oracle** takes one frame
+per annotated event — the one closest to *that event's* sentence — the right ceiling for a
+paragraph. Uniform and learned reproduce the previous run exactly.
+
+| K | uniform | learned | seg-motion | seg-learned | seg-oracle | **event-oracle** |
+|---|---|---|---|---|---|---|
+| 2 | 0.0025 | 0.0057 | 0.0048 | 0.0057 | 0.0070 | 0.0052 |
+| 4 | **0.0405** | 0.0297 | 0.0318 | 0.0259 | 0.0401 | **0.0429** |
+| 8 | 0.1019 | 0.1008 | 0.1031 | 0.0992 | 0.1035 | **0.1178** |
+
+- **Coverage did not rescue the scorer.** seg-learned is significantly *worse* than uniform at
+  K=4 (−0.0146 [−0.0282, −0.0038]) and tied at K=8 (−0.0026 [−0.0233, +0.0189]).
+- **There is some headroom at K=8 — but only for a selector that knows the events.**
+  event-oracle is the best arm (+0.0159 over uniform, +16%; CI [−0.0027, +0.0365], just short of
+  significance) and significantly beats seg-learned at K=4 and K=8. Neither the scorer nor motion
+  captures any of it.
+- **At K=2 every selector beats uniform** — learned, seg-learned, seg-motion and both oracles
+  alike — so at one sentence, *any* content-aware choice helps and the scorer is already at the
+  ceiling.
+
+**Conclusion for long videos:** the frame scorer predicts which frames make a caption-able
+image; it does not know where a video's distinct events are or what they are about, and that is
+the only thing that paid off for paragraphs. Evenly spaced frames remain the best practical
+choice, which is why `watch.py --budget 8` defaults to `uniform`. An event-aware selector would
+need event-level training signal — ActivityNet's timestamps — rather than a scorer trained on
+single-shot MSR-VTT clips. Raw numbers:
+[results/eval_activitynet_coverage.json](results/eval_activitynet_coverage.json).
+
 ## What this does NOT buy you (yet)
 
 A lower frame budget is **not** a speedup in this implementation, and it is worth being precise
@@ -406,7 +437,8 @@ Done: embedding cache, connector training, blind control, oracle ceiling, frame 
 budget curves on the full test split, TVSum/SumMe human-importance validation, video Q&A (1 epoch,
 three-selector comparison), composed summaries, end-to-end demo, `watch` (scene timeline,
 summary and two-source Q&A for longer videos), ActivityNet paragraph evaluation (300 videos,
-7 arms — selection did not help per scene; the summary step did), whole-video budget (learned helps at K=2, uniform wins at K≥4 where coverage matters).
+7 arms — selection did not help per scene; the summary step did), whole-video budget (learned helps at K=2, uniform wins at K≥4 where coverage matters)), coverage-aware selection and an event-level oracle (neither the scorer nor
+coverage closes the gap; only event knowledge helps).
 
 Not done: Stage C LoRA; diversity-aware selection; connector and LoRA-rank ablations; beam-search
 evaluation; multi-seed runs. None are load-bearing for the results above.

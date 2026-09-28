@@ -930,3 +930,26 @@ Following the budget result (uniform wins at K≥4; the video-level oracle canno
   two pure helpers into vidcap/timeline.py.
 Dry runs: all new arms end to end on the 3-video fixture; `watch --budget 8 --budget-select
 seg-learned` end to end on the synthetic video.
+
+## Coverage experiment results (2026-09-28)
+
+`results/eval_activitynet_coverage.json`, 300 videos. uniform/learned reproduce the budget run to
+4 d.p. (deterministic pipeline). CIDEr-D:
+
+| K | uniform | learned | seg-motion | seg-learned | seg-oracle | event-oracle |
+|---|---|---|---|---|---|---|
+| 2 | 0.0025 | 0.0057 | 0.0048 | 0.0057 | 0.0070 | 0.0052 |
+| 4 | 0.0405 | 0.0297 | 0.0318 | 0.0259 | 0.0401 | 0.0429 |
+| 8 | 0.1019 | 0.1008 | 0.1031 | 0.0992 | 0.1035 | 0.1178 |
+
+Paired: K=2 every arm > uniform (sig.), seg-learned ≈ learned ≈ oracles. K=4 seg-learned −0.0146
+[−0.0282, −0.0038] vs uniform; event-oracle ≈ uniform; event-oracle − seg-learned +0.0170 sig.
+K=8 all selectors ≈ uniform except event-oracle +0.0159 [−0.0027, +0.0365] (borderline);
+event-oracle − seg-learned +0.0185 [+0.0015, +0.0359] sig.
+
+Reading: coverage alone (seg-) does not rescue the scorer — its within-slice choice is no better
+than the slice's evenly spaced frame. The only headroom for paragraphs comes from knowing where
+each event is and what it is about (event-oracle), which a per-frame caption-relevance scorer
+trained on single-shot clips cannot know. Long-video line of work closed here: uniform is the
+practical default (`watch --budget 8` uses it); an event-aware selector would need training on
+ActivityNet timestamps. The watch --budget demo cell's outputs were not downloaded.
